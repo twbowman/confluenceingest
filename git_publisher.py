@@ -1,6 +1,15 @@
-"""Publish the knowledge base directory to a separate Git repository via SSH."""
+"""
+Publish the knowledge base to a remote Git repository via SSH.
+
+Flow:
+1. Clone the remote knowledge base repo to a temporary directory
+2. Copy the synced Markdown files into the clone
+3. Commit and push changes
+4. Clean up the temporary clone (unless --keep-local is set)
+"""
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -11,8 +20,9 @@ def _git_env() -> dict:
     """Build environment variables for git commands, including SSH key if configured."""
     env = os.environ.copy()
     if Config.KB_GIT_SSH_KEY:
-        # Use the specified SSH key for git operations
-        env["GIT_SSH_COMMAND"] = f"ssh -i {Config.KB_GIT_SSH_KEY} -o StrictHostKeyChecking=accept-new"
+        env["GIT_SSH_COMMAND"] = (
+            f"ssh -i {Config.KB_GIT_SSH_KEY} -o StrictHostKeyChecking=accept-new"
+        )
     return env
 
 
@@ -23,7 +33,7 @@ def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
         cwd=cwd,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=120,
         env=_git_env(),
     )
     if result.returncode != 0:
@@ -31,12 +41,6 @@ def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
             f"git {' '.join(args)} failed:\n{result.stderr.strip()}"
         )
     return result
-
-
-def _is_git_repo(path: str) -> bool:
-    """Check if the directory is already a git repository."""
-    git_dir = Path(path) / ".git"
-    return git_dir.exists()
 
 
 def _has_changes(cwd: str) -> bool:
@@ -51,100 +55,78 @@ def _has_changes(cwd: str) -> bool:
     return bool(result.stdout.strip())
 
 
-def init_kb_repo(output_dir: str):
+def _clone_kb_repo(clone_dir: Path) -> bool:
     """
-    Initialize the knowledge base directory as a git repo connected to the
-    remote KB repository. Clones if empty, or sets up remote if already exists.
+    Clone the remote knowledge base repo into clone_dir.
+
+    Returns True if cloned successfully, False if remote is empty/new.
     """
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
+    if clone_dir.exists():
+        shutil.rmtree(clone_dir)
 
-    if _is_git_repo(output_dir):
-        # Already initialized — ensure remote is correct
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            cwd=output_dir,
-            capture_output=True,
-            text=True,
-        )
-        current_remote = result.stdout.strip()
-        if current_remote != Config.KB_GIT_REPO_URL:
-            _run_git(["remote", "set-url", "origin", Config.KB_GIT_REPO_URL], output_dir)
-            print(f"  Updated remote to: {Config.KB_GIT_REPO_URL}")
-
-        # Pull latest to avoid conflicts
-        try:
-            _run_git(["pull", "origin", Config.KB_GIT_BRANCH, "--rebase"], output_dir)
-            print("  Pulled latest from remote")
-        except RuntimeError:
-            # May fail if remote is empty (first push) — that's fine
-            pass
-
-        return
-
-    # Check if the output dir already has files (from a previous sync without git)
-    existing_files = list(output_path.iterdir())
-
-    if existing_files:
-        # Directory has content but no git — init and connect to remote
-        _run_git(["init"], output_dir)
-        _run_git(["remote", "add", "origin", Config.KB_GIT_REPO_URL], output_dir)
+    try:
         _run_git(
-            ["config", "user.name", Config.KB_GIT_AUTHOR_NAME], output_dir
+            ["clone", "--branch", Config.KB_GIT_BRANCH,
+             Config.KB_GIT_REPO_URL, str(clone_dir)],
+            cwd=str(clone_dir.parent),
         )
-        _run_git(
-            ["config", "user.email", Config.KB_GIT_AUTHOR_EMAIL], output_dir
-        )
-        print(f"  Initialized git repo in {output_dir}")
-    else:
-        # Empty directory — clone the remote repo into it
-        # Clone into a temp name then move contents (git clone won't clone into non-empty dir)
-        parent = output_path.parent
-        temp_dir = parent / ".kb-clone-temp"
-
+        print(f"  Cloned {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
+        return True
+    except RuntimeError:
+        # Branch or repo might not exist yet — clone without branch, or init fresh
         try:
-            subprocess.run(
-                ["git", "clone", "--branch", Config.KB_GIT_BRANCH,
-                 Config.KB_GIT_REPO_URL, str(temp_dir)],
-                capture_output=True,
-                text=True,
-                timeout=120,
-                env=_git_env(),
+            _run_git(
+                ["clone", Config.KB_GIT_REPO_URL, str(clone_dir)],
+                cwd=str(clone_dir.parent),
             )
-            # Move .git and any existing content into output_dir
-            if (temp_dir / ".git").exists():
-                import shutil
-                for item in temp_dir.iterdir():
-                    dest = output_path / item.name
-                    if dest.exists():
-                        if dest.is_dir():
-                            shutil.rmtree(dest)
-                        else:
-                            dest.unlink()
-                    shutil.move(str(item), str(dest))
-                temp_dir.rmdir()
-                print(f"  Cloned {Config.KB_GIT_REPO_URL} into {output_dir}")
-        except (RuntimeError, subprocess.TimeoutExpired):
-            # Remote might be empty — just init fresh
-            if temp_dir.exists():
-                import shutil
-                shutil.rmtree(temp_dir)
-            _run_git(["init"], output_dir)
-            _run_git(["remote", "add", "origin", Config.KB_GIT_REPO_URL], output_dir)
-            print(f"  Initialized new git repo in {output_dir} (remote appears empty)")
-
-        # Set author config
-        _run_git(
-            ["config", "user.name", Config.KB_GIT_AUTHOR_NAME], output_dir
-        )
-        _run_git(
-            ["config", "user.email", Config.KB_GIT_AUTHOR_EMAIL], output_dir
-        )
+            print(f"  Cloned {Config.KB_GIT_REPO_URL} (default branch)")
+            return True
+        except RuntimeError:
+            # Truly empty repo — init fresh and set remote
+            clone_dir.mkdir(parents=True, exist_ok=True)
+            _run_git(["init"], str(clone_dir))
+            _run_git(["remote", "add", "origin", Config.KB_GIT_REPO_URL], str(clone_dir))
+            _run_git(["checkout", "-b", Config.KB_GIT_BRANCH], str(clone_dir))
+            print(f"  Initialized new repo (remote appears empty)")
+            return False
 
 
-def publish_kb(output_dir: str, stats: dict) -> bool:
+def _copy_files_to_clone(source_dir: str, clone_dir: Path):
     """
-    Commit and push any changes in the knowledge base directory to the remote repo.
+    Copy synced Markdown files from the output directory into the cloned repo.
+
+    Replaces all content in the clone (except .git) with the current sync output.
+    This ensures deleted pages are also removed from the repo.
+    """
+    # Remove all existing content in clone (except .git)
+    for item in clone_dir.iterdir():
+        if item.name == ".git":
+            continue
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+    # Copy all files from source into clone
+    source_path = Path(source_dir)
+    for item in source_path.iterdir():
+        dest = clone_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest)
+        else:
+            shutil.copy2(item, dest)
+
+    print(f"  Copied files from {source_dir} into clone")
+
+
+def publish_kb(output_dir: str, stats: dict, keep_local: bool = False) -> bool:
+    """
+    Clone the remote KB repo, copy in synced files, commit, push, and clean up.
+
+    Args:
+        output_dir: Path to the local directory containing synced Markdown files.
+        stats: Dict with sync stats (created, updated counts) for the commit message.
+        keep_local: If True, keep the cloned repo on disk after pushing.
 
     Returns True if changes were pushed, False if there was nothing to push.
     """
@@ -154,29 +136,49 @@ def publish_kb(output_dir: str, stats: dict) -> bool:
 
     print("\nPublishing knowledge base to git...")
 
-    # Ensure repo is initialized
-    init_kb_repo(output_dir)
+    # Determine clone location
+    clone_dir = Path(output_dir).parent / ".kb-repo"
 
-    # Stage all changes
-    _run_git(["add", "-A"], output_dir)
+    # Step 1: Clone the remote repo
+    print("  Pulling remote knowledge base repo...")
+    _clone_kb_repo(clone_dir)
 
-    # Check if there's anything to commit
-    if not _has_changes(output_dir):
-        print("  No changes to publish")
+    # Step 2: Set git author config
+    _run_git(["config", "user.name", Config.KB_GIT_AUTHOR_NAME], str(clone_dir))
+    _run_git(["config", "user.email", Config.KB_GIT_AUTHOR_EMAIL], str(clone_dir))
+
+    # Step 3: Copy synced files into the clone
+    _copy_files_to_clone(output_dir, clone_dir)
+
+    # Step 4: Stage all changes
+    _run_git(["add", "-A"], str(clone_dir))
+
+    # Step 5: Check if there's anything to commit
+    if not _has_changes(str(clone_dir)):
+        print("  No changes to publish — remote is already up to date")
+        if not keep_local:
+            shutil.rmtree(clone_dir)
+            print("  Cleaned up local clone")
         return False
 
-    # Build commit message from sync stats
+    # Step 6: Commit
     commit_message = (
         f"Sync from Confluence: "
         f"+{stats.get('created', 0)} created, "
         f"~{stats.get('updated', 0)} updated"
     )
-
-    _run_git(["commit", "-m", commit_message], output_dir)
+    _run_git(["commit", "-m", commit_message], str(clone_dir))
     print(f"  Committed: {commit_message}")
 
-    # Push to remote
-    _run_git(["push", "-u", "origin", Config.KB_GIT_BRANCH], output_dir)
+    # Step 7: Push
+    _run_git(["push", "-u", "origin", Config.KB_GIT_BRANCH], str(clone_dir))
     print(f"  Pushed to {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
+
+    # Step 8: Cleanup
+    if keep_local:
+        print(f"  Local clone retained at: {clone_dir}")
+    else:
+        shutil.rmtree(clone_dir)
+        print("  Cleaned up local clone")
 
     return True

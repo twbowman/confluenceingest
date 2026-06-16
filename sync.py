@@ -70,7 +70,7 @@ def save_sync_state(output_dir: str, state: dict):
     )
 
 
-def sync(dry_run: bool = False, push: bool = True):
+def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
     """Run the Confluence → Markdown sync."""
     print("=" * 60)
     print("Confluence → Markdown Sync")
@@ -159,7 +159,7 @@ def sync(dry_run: bool = False, push: bool = True):
 
     # Publish to knowledge base git repo
     if not dry_run and push and (stats["created"] > 0 or stats["updated"] > 0):
-        publish_kb(output_dir, stats)
+        publish_kb(output_dir, stats, keep_local=keep_local)
     elif not push:
         print("\n  Git push skipped (--no-push)")
 
@@ -176,8 +176,13 @@ def main():
         action="store_true",
         help="Sync files locally but skip pushing to the knowledge base git repo",
     )
+    parser.add_argument(
+        "--keep-local",
+        action="store_true",
+        help="Keep the cloned knowledge base repo on disk after pushing (skip cleanup)",
+    )
     args = parser.parse_args()
-    sync(dry_run=args.dry_run, push=not args.no_push)
+    sync(dry_run=args.dry_run, push=not args.no_push, keep_local=args.keep_local)
 
 
 if __name__ == "__main__":
