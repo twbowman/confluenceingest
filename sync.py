@@ -5,10 +5,18 @@ Exports Confluence pages to a tool-agnostic Markdown knowledge base with
 YAML frontmatter metadata. Organizes files in a directory structure that
 mirrors the Confluence page hierarchy.
 
+Flow:
+    1. Pull (clone) the knowledge base Git repo from GitLab
+    2. Fetch pages from Confluence
+    3. Convert and write changed pages into the cloned repo
+    4. Commit and push changes back to GitLab
+    5. Clean up the local clone (unless --keep-local)
+
 Usage:
     python sync.py             # Full sync of configured space
     python sync.py --dry-run   # Show what would be synced without writing
     python sync.py --no-push   # Sync files but skip git push
+    python sync.py --keep-local # Keep the local clone after pushing
 """
 
 import argparse
@@ -20,14 +28,14 @@ from datetime import datetime
 from config import Config
 from confluence_loader import fetch_pages
 from converter import convert_page
-from git_publisher import publish_kb
+from git_publisher import pull_kb_repo, push_kb_repo, cleanup_kb_repo
 
 
 def build_file_path(page: dict, output_dir: str) -> Path:
     """
     Build the output file path preserving page hierarchy as directories.
 
-    Example: Engineering > Infrastructure > Deployment → 
+    Example: Engineering > Infrastructure > Deployment →
              knowledge-base/engineering/infrastructure/deployment.md
     """
     ancestors = [ancestor["title"] for ancestor in page.get("ancestors", [])]
@@ -76,22 +84,31 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
     print("Confluence → Markdown Sync")
     print("=" * 60)
 
-    # Fetch pages from Confluence
+    output_dir = Config.OUTPUT_DIR
+
+    # Step 1: Pull (clone) the knowledge base repo from GitLab
+    # This gives us the .sync-state.json for incremental change detection
+    if not dry_run and push:
+        pull_kb_repo()
+    else:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Step 2: Load sync state from the cloned repo (or empty if first run)
+    previous_state = load_sync_state(output_dir)
+
+    # Step 3: Fetch pages from Confluence
     print("\nFetching pages from Confluence...")
     pages = fetch_pages()
     print(f"  Found {len(pages)} page(s)")
 
     if not pages:
         print("Nothing to sync.")
+        if not dry_run and push and not keep_local:
+            cleanup_kb_repo()
         return
 
-    # Load previous sync state for change detection
-    output_dir = Config.OUTPUT_DIR
-    previous_state = load_sync_state(output_dir)
-    new_state = {}
-
     space_key = Config.CONFLUENCE_SPACE_KEY
-
+    new_state = {}
     stats = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
 
     print(f"\nSyncing to: {output_dir}/")
@@ -100,6 +117,7 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
     else:
         print()
 
+    # Step 4: Convert and write changed pages
     for page in pages:
         page_id = page["id"]
         title = page["title"]
@@ -143,9 +161,8 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
             "synced_at": datetime.now().isoformat(),
         }
 
-    # Save sync state
+    # Save sync state into the repo directory
     if not dry_run:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
         save_sync_state(output_dir, new_state)
 
     # Summary
@@ -157,11 +174,17 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
     print(f"  Skipped:   {stats['skipped']}")
     print(f"{'─' * 60}")
 
-    # Publish to knowledge base git repo
+    # Step 5: Commit and push to GitLab
     if not dry_run and push and (stats["created"] > 0 or stats["updated"] > 0):
-        publish_kb(output_dir, stats, keep_local=keep_local)
+        push_kb_repo(stats)
     elif not push:
         print("\n  Git push skipped (--no-push)")
+
+    # Step 6: Cleanup
+    if not dry_run and push and not keep_local:
+        cleanup_kb_repo()
+    elif keep_local:
+        print(f"\n  Local clone retained at: {output_dir}")
 
 
 def main():
