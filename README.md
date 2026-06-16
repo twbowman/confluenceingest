@@ -47,9 +47,8 @@ cp .env.example .env
 ```
 
 Fill in:
-- `CONFLUENCE_URL` — your instance base URL (e.g., `https://your-org.atlassian.net/wiki`)
-- `CONFLUENCE_USERNAME` — your email
-- `CONFLUENCE_API_TOKEN` — generate at https://id.atlassian.com/manage-profile/security/api-tokens
+- `CONFLUENCE_URL` — your instance base URL (e.g., `https://wiki.mycompany.com`)
+- `CONFLUENCE_PAT` — Personal Access Token (generate in Confluence under Profile → Personal Access Tokens)
 - `CONFLUENCE_SPACE_KEY` — space to export (e.g., `ENG`)
 - `OUTPUT_DIR` — where to write the Markdown files (default: `./knowledge-base`)
 

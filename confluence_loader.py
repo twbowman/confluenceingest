@@ -1,7 +1,15 @@
-"""Fetch pages from Confluence via REST API."""
+"""Fetch pages from Confluence via REST API using Bearer token (PAT) authentication."""
 
 import requests
 from config import Config
+
+
+def _get_headers() -> dict:
+    """Build request headers with Bearer token authentication."""
+    return {
+        "Authorization": f"Bearer {Config.CONFLUENCE_PAT}",
+        "Accept": "application/json",
+    }
 
 
 def fetch_pages_from_space(space_key: str) -> list[dict]:
@@ -20,7 +28,7 @@ def fetch_pages_from_space(space_key: str) -> list[dict]:
         )
         response = requests.get(
             url,
-            auth=(Config.CONFLUENCE_USERNAME, Config.CONFLUENCE_API_TOKEN),
+            headers=_get_headers(),
             timeout=30,
         )
         response.raise_for_status()
@@ -49,7 +57,7 @@ def fetch_pages_by_ids(page_ids: list[str]) -> list[dict]:
         )
         response = requests.get(
             url,
-            auth=(Config.CONFLUENCE_USERNAME, Config.CONFLUENCE_API_TOKEN),
+            headers=_get_headers(),
             timeout=30,
         )
         response.raise_for_status()
