@@ -55,11 +55,14 @@ Fill in:
 ### 3. Run the sync
 
 ```bash
-# Full sync
+# Full sync — exports pages and pushes to knowledge base repo
 python sync.py
 
-# Preview without writing files
+# Preview without writing files or pushing
 python sync.py --dry-run
+
+# Sync locally but don't push to git
+python sync.py --no-push
 ```
 
 ## Output Format
@@ -95,6 +98,19 @@ parent: Infrastructure
 ## Incremental Sync
 
 The tool tracks page versions in `.sync-state.json`. On subsequent runs, only pages that have changed in Confluence are re-exported. This keeps sync fast for large spaces.
+
+## Git Publishing
+
+After syncing, the tool automatically commits and pushes changes to a separate Git repository configured via `KB_GIT_REPO_URL`. This gives you:
+
+- Full version history of your knowledge base
+- Diffs showing what changed between syncs
+- A clean separation between the sync tooling repo and the knowledge base content repo
+- A git-native data source for downstream consumers (RAG, docs sites, search)
+
+On first run, the tool initializes the output directory as a git repo connected to the remote. On subsequent runs, it pulls latest, commits new changes, and pushes.
+
+Set `--no-push` to sync locally without publishing, or omit `KB_GIT_REPO_URL` from your `.env` to disable git publishing entirely.
 
 ## Downstream Consumers
 

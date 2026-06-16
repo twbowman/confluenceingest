@@ -8,6 +8,7 @@ mirrors the Confluence page hierarchy.
 Usage:
     python sync.py             # Full sync of configured space
     python sync.py --dry-run   # Show what would be synced without writing
+    python sync.py --no-push   # Sync files but skip git push
 """
 
 import argparse
@@ -19,6 +20,7 @@ from datetime import datetime
 from config import Config
 from confluence_loader import fetch_pages
 from converter import convert_page
+from git_publisher import publish_kb
 
 
 def build_file_path(page: dict, output_dir: str) -> Path:
@@ -68,7 +70,7 @@ def save_sync_state(output_dir: str, state: dict):
     )
 
 
-def sync(dry_run: bool = False):
+def sync(dry_run: bool = False, push: bool = True):
     """Run the Confluence → Markdown sync."""
     print("=" * 60)
     print("Confluence → Markdown Sync")
@@ -155,6 +157,12 @@ def sync(dry_run: bool = False):
     print(f"  Skipped:   {stats['skipped']}")
     print(f"{'─' * 60}")
 
+    # Publish to knowledge base git repo
+    if not dry_run and push and (stats["created"] > 0 or stats["updated"] > 0):
+        publish_kb(output_dir, stats)
+    elif not push:
+        print("\n  Git push skipped (--no-push)")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Sync Confluence pages to Markdown")
@@ -163,8 +171,13 @@ def main():
         action="store_true",
         help="Show what would be synced without writing files",
     )
+    parser.add_argument(
+        "--no-push",
+        action="store_true",
+        help="Sync files locally but skip pushing to the knowledge base git repo",
+    )
     args = parser.parse_args()
-    sync(dry_run=args.dry_run)
+    sync(dry_run=args.dry_run, push=not args.no_push)
 
 
 if __name__ == "__main__":
