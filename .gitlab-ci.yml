@@ -1,5 +1,53 @@
 stages:
+  - lint
+  - security
   - sync
+
+# ─────────────────────────────────────────────────────────────
+# Lint & Format — runs on every push
+# ─────────────────────────────────────────────────────────────
+
+lint:
+  stage: lint
+  image: python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+  before_script:
+    - pip install --no-cache-dir ruff mypy
+    - pip install --no-cache-dir -r requirements.txt
+  script:
+    - ruff check .
+    - ruff format --check .
+    - mypy --ignore-missing-imports .
+
+# ─────────────────────────────────────────────────────────────
+# Security — runs on every push
+# ─────────────────────────────────────────────────────────────
+
+bandit:
+  stage: security
+  image: python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+  before_script:
+    - pip install --no-cache-dir bandit
+  script:
+    - bandit -r . -x ./venv,./.venv -ll
+
+safety:
+  stage: security
+  image: python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+  before_script:
+    - pip install --no-cache-dir safety
+  script:
+    - safety check -r requirements.txt
+  allow_failure: true
+
+# ─────────────────────────────────────────────────────────────
+# Sync — manual trigger only
+# ─────────────────────────────────────────────────────────────
 
 confluence-sync:
   stage: sync
