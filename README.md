@@ -1,7 +1,5 @@
 # Confluence → Markdown Knowledge Base Sync
 
-<!-- Test change to verify GitHub push -->
-
 Exports Confluence pages to a tool-agnostic Markdown knowledge base. Pages are converted to clean Markdown with YAML frontmatter metadata, organized in a directory structure that mirrors the Confluence page hierarchy.
 
 The exported Markdown corpus is designed to be consumed by any downstream tool — RAG pipelines, static site generators, search indexes, or future platforms — without coupling to Confluence.
