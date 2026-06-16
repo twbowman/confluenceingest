@@ -1,9 +1,19 @@
-"""Publish the knowledge base directory to a separate Git repository."""
+"""Publish the knowledge base directory to a separate Git repository via SSH."""
 
+import os
 import subprocess
 from pathlib import Path
 
 from config import Config
+
+
+def _git_env() -> dict:
+    """Build environment variables for git commands, including SSH key if configured."""
+    env = os.environ.copy()
+    if Config.KB_GIT_SSH_KEY:
+        # Use the specified SSH key for git operations
+        env["GIT_SSH_COMMAND"] = f"ssh -i {Config.KB_GIT_SSH_KEY} -o StrictHostKeyChecking=accept-new"
+    return env
 
 
 def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
@@ -14,6 +24,7 @@ def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         timeout=60,
+        env=_git_env(),
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -98,6 +109,7 @@ def init_kb_repo(output_dir: str):
                 capture_output=True,
                 text=True,
                 timeout=120,
+                env=_git_env(),
             )
             # Move .git and any existing content into output_dir
             if (temp_dir / ".git").exists():
