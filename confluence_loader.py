@@ -66,19 +66,15 @@ def fetch_pages_by_ids(page_ids: list[str]) -> list[dict]:
     return pages
 
 
-def fetch_pages() -> list[dict]:
+def fetch_pages(space_key: str) -> list[dict]:
     """
-    Fetch pages based on configuration.
+    Fetch pages for the given space key.
 
     Returns raw Confluence page objects with body, metadata, ancestors, and version.
     """
     if Config.CONFLUENCE_PAGE_IDS:
         print(f"  Fetching {len(Config.CONFLUENCE_PAGE_IDS)} specific page(s)...")
         return fetch_pages_by_ids(Config.CONFLUENCE_PAGE_IDS)
-    elif Config.CONFLUENCE_SPACE_KEY:
-        print(f"  Fetching all pages from space: {Config.CONFLUENCE_SPACE_KEY}...")
-        return fetch_pages_from_space(Config.CONFLUENCE_SPACE_KEY)
-    else:
-        raise ValueError(
-            "Set either CONFLUENCE_SPACE_KEY or CONFLUENCE_PAGE_IDS in your .env"
-        )
+
+    print(f"  Fetching all pages from space: {space_key}...")
+    return fetch_pages_from_space(space_key)

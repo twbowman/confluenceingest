@@ -5,15 +5,18 @@ Exports Confluence pages to a tool-agnostic Markdown knowledge base with
 YAML frontmatter metadata. Organizes files in a directory structure that
 mirrors the Confluence page hierarchy, namespaced by space key.
 
+Supports multiple spaces in a single run — each gets its own subdirectory.
+
 Flow:
     1. Pull (clone) the knowledge base Git repo from GitLab
-    2. Fetch pages from Confluence
-    3. Convert and write changed pages into <repo>/<space_key>/
-    4. Commit and push changes back to GitLab
-    5. Clean up the local clone (unless --keep-local)
+    2. For each configured space:
+       a. Fetch pages from Confluence
+       b. Convert and write changed pages into <repo>/<space_key>/
+    3. Commit and push all changes back to GitLab
+    4. Clean up the local clone (unless --keep-local)
 
 Usage:
-    python sync.py             # Full sync of configured space
+    python sync.py             # Full sync of all configured spaces
     python sync.py --dry-run   # Show what would be synced without writing
     python sync.py --no-push   # Sync files but skip git push
     python sync.py --keep-local # Keep the local clone after pushing
@@ -78,46 +81,29 @@ def save_sync_state(space_dir: str, state: dict):
     )
 
 
-def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
-    """Run the Confluence → Markdown sync."""
-    print("=" * 60)
-    print("Confluence → Markdown Sync")
-    print("=" * 60)
+def sync_space(space_key: str, dry_run: bool = False) -> dict:
+    """
+    Sync a single Confluence space into its subdirectory.
 
-    # Step 1: Pull (clone) the knowledge base repo from GitLab
-    # This gives us the .sync-state.json for incremental change detection
-    if not dry_run and push:
-        pull_kb_repo()
-
-    # Resolve the space-specific directory within the KB repo
-    space_dir = str(get_space_dir())
+    Returns stats dict with created/updated/unchanged/skipped counts.
+    """
+    space_dir = str(get_space_dir(space_key))
     Path(space_dir).mkdir(parents=True, exist_ok=True)
 
-    # Step 2: Load sync state from the cloned repo (or empty if first run)
+    # Load sync state from the cloned repo (or empty if first run)
     previous_state = load_sync_state(space_dir)
 
-    # Step 3: Fetch pages from Confluence
-    print("\nFetching pages from Confluence...")
-    pages = fetch_pages()
+    # Fetch pages from Confluence
+    print(f"\n  Fetching pages from Confluence space: {space_key}...")
+    pages = fetch_pages(space_key)
     print(f"  Found {len(pages)} page(s)")
 
     if not pages:
-        print("Nothing to sync.")
-        if not dry_run and push and not keep_local:
-            cleanup_kb_repo()
-        return
+        return {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
 
-    space_key = Config.CONFLUENCE_SPACE_KEY
     new_state = {}
     stats = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
 
-    print(f"\nSyncing space '{space_key}' to: {space_dir}/")
-    if dry_run:
-        print("  (DRY RUN — no files will be written)\n")
-    else:
-        print()
-
-    # Step 4: Convert and write changed pages
     for page in pages:
         page_id = page["id"]
         title = page["title"]
@@ -133,7 +119,7 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
         # Convert to Markdown
         content = convert_page(page, space_key)
         if not content:
-            print(f"  SKIP (no content): {title}")
+            print(f"    SKIP (no content): {title}")
             stats["skipped"] += 1
             continue
 
@@ -147,7 +133,7 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
         else:
             stats["updated"] += 1
 
-        print(f"  {action}: {title} → {file_path.relative_to(space_dir)}")
+        print(f"    {action}: {title} → {file_path.relative_to(space_dir)}")
 
         if not dry_run:
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,23 +151,61 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
     if not dry_run:
         save_sync_state(space_dir, new_state)
 
-    # Summary
-    print(f"\n{'─' * 60}")
-    print("Sync complete:")
-    print(f"  Space:     {space_key}")
-    print(f"  Created:   {stats['created']}")
-    print(f"  Updated:   {stats['updated']}")
-    print(f"  Unchanged: {stats['unchanged']}")
-    print(f"  Skipped:   {stats['skipped']}")
-    print(f"{'─' * 60}")
+    return stats
 
-    # Step 5: Commit and push to GitLab
-    if not dry_run and push and (stats["created"] > 0 or stats["updated"] > 0):
-        push_kb_repo(stats)
+
+def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
+    """Run the Confluence → Markdown sync for all configured spaces."""
+    print("=" * 60)
+    print("Confluence → Markdown Sync")
+    print("=" * 60)
+
+    space_keys = Config.CONFLUENCE_SPACE_KEYS
+    if not space_keys:
+        raise ValueError("Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)")
+
+    print(f"\nSpaces to sync: {', '.join(space_keys)}")
+
+    # Step 1: Pull (clone) the knowledge base repo from GitLab
+    if not dry_run and push:
+        pull_kb_repo()
+
+    if dry_run:
+        print("  (DRY RUN — no files will be written)\n")
+
+    # Step 2: Sync each space
+    total_stats = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
+
+    for space_key in space_keys:
+        print(f"\n{'─' * 60}")
+        print(f"Syncing space: {space_key}")
+        print(f"{'─' * 60}")
+
+        stats = sync_space(space_key, dry_run=dry_run)
+
+        for key in total_stats:
+            total_stats[key] += stats[key]
+
+        print(f"  Space {space_key}: +{stats['created']} created, ~{stats['updated']} updated, "
+              f"={stats['unchanged']} unchanged, -{stats['skipped']} skipped")
+
+    # Summary
+    print(f"\n{'═' * 60}")
+    print("All spaces synced:")
+    print(f"  Spaces:    {len(space_keys)}")
+    print(f"  Created:   {total_stats['created']}")
+    print(f"  Updated:   {total_stats['updated']}")
+    print(f"  Unchanged: {total_stats['unchanged']}")
+    print(f"  Skipped:   {total_stats['skipped']}")
+    print(f"{'═' * 60}")
+
+    # Step 3: Commit and push to GitLab (single commit for all spaces)
+    if not dry_run and push and (total_stats["created"] > 0 or total_stats["updated"] > 0):
+        push_kb_repo(total_stats)
     elif not push:
         print("\n  Git push skipped (--no-push)")
 
-    # Step 6: Cleanup
+    # Step 4: Cleanup
     if not dry_run and push and not keep_local:
         cleanup_kb_repo()
     elif keep_local:

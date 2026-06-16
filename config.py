@@ -13,6 +13,11 @@ class Config:
     CONFLUENCE_URL: str = os.getenv("CONFLUENCE_URL", "")
     CONFLUENCE_PAT: str = os.getenv("CONFLUENCE_PAT", "")
     CONFLUENCE_SPACE_KEY: str = os.getenv("CONFLUENCE_SPACE_KEY", "")
+    CONFLUENCE_SPACE_KEYS: list[str] = [
+        key.strip()
+        for key in os.getenv("CONFLUENCE_SPACE_KEY", "").split(",")
+        if key.strip()
+    ]
     CONFLUENCE_PAGE_IDS: list[str] = [
         pid.strip()
         for pid in os.getenv("CONFLUENCE_PAGE_IDS", "").split(",")

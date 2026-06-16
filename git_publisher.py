@@ -60,10 +60,9 @@ def get_clone_dir() -> Path:
     return Path(Config.OUTPUT_DIR)
 
 
-def get_space_dir() -> Path:
+def get_space_dir(space_key: str) -> Path:
     """Get the space-specific subdirectory within the KB repo."""
-    space_key = Config.CONFLUENCE_SPACE_KEY.lower()
-    return get_clone_dir() / space_key
+    return get_clone_dir() / space_key.lower()
 
 
 def pull_kb_repo() -> Path:
