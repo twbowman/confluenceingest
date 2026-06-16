@@ -19,7 +19,7 @@ class Config:
         if pid.strip()
     ]
 
-    # Output
+    # Output — base directory; each space gets a subdirectory under this
     OUTPUT_DIR: str = os.getenv("OUTPUT_DIR", "./knowledge-base")
 
     # Knowledge base Git repo

@@ -60,6 +60,12 @@ def get_clone_dir() -> Path:
     return Path(Config.OUTPUT_DIR)
 
 
+def get_space_dir() -> Path:
+    """Get the space-specific subdirectory within the KB repo."""
+    space_key = Config.CONFLUENCE_SPACE_KEY.lower()
+    return get_clone_dir() / space_key
+
+
 def pull_kb_repo() -> Path:
     """
     Clone the remote knowledge base repo to the local working directory.
