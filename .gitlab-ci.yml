@@ -1,32 +1,39 @@
 stages:
-  - lint
-  - security
+  - sync
 
-.python-setup:
-  image: python:${PYTHON_VERSION}-slim
+confluence-sync:
+  stage: sync
+  image: python:3.12-slim
+  environment: confluence-sync
+  rules:
+    - when: manual
   before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
-
-lint:
-  extends: .python-setup
-  stage: lint
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.11", "3.12"]
+    - apt-get update && apt-get install -y git openssh-client
+    - pip install --no-cache-dir -r requirements.txt
+    # Set up SSH key for pushing to the knowledge base repo
+    - mkdir -p ~/.ssh
+    - echo "$KB_GIT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -t rsa "$KB_GIT_HOST" >> ~/.ssh/known_hosts 2>/dev/null
   script:
-    - pip install ruff mypy
-    - ruff check .
-    - ruff format --check .
-    - mypy --ignore-missing-imports .
-
-security:
-  extends: .python-setup
-  stage: security
+    - python sync.py
   variables:
-    PYTHON_VERSION: "3.12"
-  script:
-    - pip install bandit safety
-    - bandit -r . -x ./venv,./.venv -ll
-    - safety check -r requirements.txt
-  allow_failure: true
+    # These are pulled from the GitLab environment "confluence-sync"
+    # Configure them under Settings → CI/CD → Variables (scoped to the environment)
+    #
+    # Variables (not masked):
+    #   CONFLUENCE_URL          - e.g., https://wiki.mycompany.com
+    #   CONFLUENCE_SPACE_KEY    - e.g., ENG,PRODUCT,OPS
+    #   KB_GIT_REPO_URL         - e.g., git@gitlab.mycompany.com:your-org/knowledge-base.git
+    #   KB_GIT_BRANCH           - e.g., master
+    #   KB_GIT_AUTHOR_NAME      - e.g., confluence-sync
+    #   KB_GIT_AUTHOR_EMAIL     - e.g., confluence-sync@mycompany.com
+    #   KB_GIT_HOST             - e.g., gitlab.mycompany.com (for ssh-keyscan)
+    #   OUTPUT_DIR              - e.g., ./knowledge-base
+    #
+    # Masked/Protected variables:
+    #   CONFLUENCE_PAT          - Confluence Personal Access Token
+    #   KB_GIT_SSH_PRIVATE_KEY  - SSH private key (File type recommended)
+    #
+    # KB_GIT_SSH_KEY is set to the path where we write the key in before_script
+    KB_GIT_SSH_KEY: ~/.ssh/id_rsa
