@@ -23,11 +23,29 @@ ollama pull llama3.1:8b
 ollama pull nomic-embed-text
 ```
 
-2. **Python 3.10+** with dependencies:
+2. **Python 3.10+** with dependencies (using [uv](https://docs.astral.sh/uv/)):
 
 ```bash
+# Install uv (if you don't have it)
+brew install uv
+
+# Create and activate a virtual environment
+uv venv
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -r requirements.txt
+```
+
+<details>
+<summary>Alternative: pip + venv</summary>
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+</details>
 
 3. **SSH key** with read access to the knowledge base GitLab repo.
 

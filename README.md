@@ -46,11 +46,31 @@ GitLab: git@gitlab.mycompany.com:your-org/knowledge-base.git
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Install uv (recommended) and set up environment
+
+[uv](https://docs.astral.sh/uv/) handles virtual environments and package installation in a single, fast tool.
 
 ```bash
+# Install uv (if you don't have it)
+brew install uv
+
+# Create and activate a virtual environment
+uv venv
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -r requirements.txt
+```
+
+<details>
+<summary>Alternative: pip + venv</summary>
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+</details>
 
 ### 2. Configure environment
 
