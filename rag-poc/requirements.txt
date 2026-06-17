@@ -1,0 +1,5 @@
+ollama
+chromadb
+pyyaml
+python-frontmatter
+python-dotenv
