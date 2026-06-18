@@ -60,27 +60,58 @@ def confluence_html_to_markdown(html_content: str) -> str:
     )
 
     # Task lists (checklists) → GitHub-style Markdown checkboxes
-    def _convert_task(match: re.Match) -> str:
-        task_html = match.group(0)
-        status_match = re.search(
-            r"<ac:task-status>(.*?)</ac:task-status>", task_html
-        )
-        checked = status_match and status_match.group(1).strip().lower() == "complete"
-        checkbox = "[x]" if checked else "[ ]"
-        # Extract the task body text (inside <ac:task-body>)
-        body_match = re.search(
-            r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
-        )
-        body = body_match.group(1).strip() if body_match else ""
-        # Strip any remaining inline HTML tags from the body
-        body = re.sub(r"<[^>]+>", "", body).strip()
-        return f"- {checkbox} {body}\n"
+    # Handle differently inside vs outside table cells
+    # Use a placeholder for line breaks inside tables that survives markdownify
+    _TABLE_BR_PLACEHOLDER = "%%BR%%"
 
+    def _convert_task_list(match: re.Match) -> str:
+        task_list_html = match.group(0)
+        tasks = re.findall(r"<ac:task>.*?</ac:task>", task_list_html, re.DOTALL)
+        items = []
+        for task_html in tasks:
+            status_match = re.search(
+                r"<ac:task-status>(.*?)</ac:task-status>", task_html
+            )
+            checked = status_match and status_match.group(1).strip().lower() == "complete"
+            checkbox = "[x]" if checked else "[ ]"
+            body_match = re.search(
+                r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
+            )
+            body = body_match.group(1).strip() if body_match else ""
+            body = re.sub(r"<[^>]+>", "", body).strip()
+            items.append(f"- {checkbox} {body}")
+        return "\n".join(items) + "\n"
+
+    def _convert_task_list_in_table(match: re.Match) -> str:
+        """Convert task lists inside table cells using <br> for line separation."""
+        task_list_html = match.group(1)
+        tasks = re.findall(r"<ac:task>.*?</ac:task>", task_list_html, re.DOTALL)
+        items = []
+        for task_html in tasks:
+            status_match = re.search(
+                r"<ac:task-status>(.*?)</ac:task-status>", task_html
+            )
+            checked = status_match and status_match.group(1).strip().lower() == "complete"
+            checkbox = "☑" if checked else "☐"
+            body_match = re.search(
+                r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
+            )
+            body = body_match.group(1).strip() if body_match else ""
+            body = re.sub(r"<[^>]+>", "", body).strip()
+            items.append(f"{checkbox} {body}")
+        return _TABLE_BR_PLACEHOLDER.join(items)
+
+    # First: handle task lists inside table cells (<td> or <th>)
     cleaned = re.sub(
-        r"<ac:task>.*?</ac:task>", _convert_task, cleaned, flags=re.DOTALL
+        r"<t[dh][^>]*>.*?(<ac:task-list>.*?</ac:task-list>).*?</t[dh]>",
+        lambda m: m.group(0).replace(m.group(1), _convert_task_list_in_table(m)),
+        cleaned,
+        flags=re.DOTALL,
     )
-    # Remove the wrapping task-list tags (individual tasks already converted above)
-    cleaned = re.sub(r"<ac:task-list>|</ac:task-list>", "", cleaned)
+    # Then: handle remaining task lists (outside tables)
+    cleaned = re.sub(
+        r"<ac:task-list>.*?</ac:task-list>", _convert_task_list, cleaned, flags=re.DOTALL
+    )
 
     # Remove remaining Confluence-specific XML tags
     cleaned = re.sub(r"<ac:[^>]*>|</ac:[^>]*>", "", cleaned)
@@ -88,6 +119,9 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     # --- Convert HTML to Markdown ---
     markdown_body = md(cleaned, heading_style="ATX", strip=["img"])
+
+    # Restore line breaks in table cells
+    markdown_body = markdown_body.replace(_TABLE_BR_PLACEHOLDER, "<br>")
 
     # Clean up excessive whitespace
     markdown_body = re.sub(r"\n{3,}", "\n\n", markdown_body)
