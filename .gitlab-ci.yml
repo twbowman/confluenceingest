@@ -9,6 +9,8 @@ stages:
 
 default:
   image: registry.access.redhat.com/ubi9/python-312:latest
+  before_script:
+    - microdnf install -y python3.12-pip && microdnf clean all
 
 # ─────────────────────────────────────────────────────────────
 # Lint & Format — runs on every push
@@ -19,6 +21,7 @@ lint:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
+    - microdnf install -y python3.12-pip && microdnf clean all
     - pip install --no-cache-dir ruff mypy
     - pip install --no-cache-dir -r requirements.txt
   script:
@@ -35,6 +38,7 @@ bandit:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
+    - microdnf install -y python3.12-pip && microdnf clean all
     - pip install --no-cache-dir bandit
   script:
     - bandit -r . -x ./venv,./.venv -ll
@@ -44,6 +48,7 @@ safety:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
+    - microdnf install -y python3.12-pip && microdnf clean all
     - pip install --no-cache-dir safety
   script:
     - safety check -r requirements.txt
@@ -59,7 +64,7 @@ confluence-sync:
   rules:
     - when: manual
   before_script:
-    - microdnf install -y git openssh-clients && microdnf clean all
+    - microdnf install -y python3.12-pip git openssh-clients && microdnf clean all
     - pip install --no-cache-dir -r requirements.txt
     # Set up SSH key for pushing to the knowledge base repo
     - mkdir -p ~/.ssh
