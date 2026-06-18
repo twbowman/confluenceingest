@@ -8,11 +8,11 @@ stages:
 # ─────────────────────────────────────────────────────────────
 
 default:
-  image: registry.access.redhat.com/ubi9/python-312:latest
+  image: registry.access.redhat.com/ubi9-minimal:latest
   tags:
     - do.small
   before_script:
-    - microdnf install -y tar && microdnf clean all
+    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
 
@@ -25,7 +25,7 @@ lint:
   rules:
     - when: never
   before_script:
-    - microdnf install -y tar && microdnf clean all
+    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv pip install --system --no-cache ruff mypy
@@ -44,7 +44,7 @@ bandit:
   rules:
     - when: never
   before_script:
-    - microdnf install -y tar && microdnf clean all
+    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv pip install --system --no-cache bandit
@@ -56,7 +56,7 @@ safety:
   rules:
     - when: never
   before_script:
-    - microdnf install -y tar && microdnf clean all
+    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv pip install --system --no-cache safety
@@ -74,7 +74,7 @@ confluence-sync:
   rules:
     - when: manual
   before_script:
-    - microdnf install -y tar git openssh-clients && microdnf clean all
+    - microdnf install -y tar python3.12 python3.12-pip git openssh-clients && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv pip install --system --no-cache -r requirements.txt
@@ -84,7 +84,7 @@ confluence-sync:
     - chmod 600 ~/.ssh/id_rsa
     - ssh-keyscan -t rsa "$KB_GIT_HOST" >> ~/.ssh/known_hosts 2>/dev/null
   script:
-    - python sync.py
+    - python3.12 sync.py
   variables:
     # These are pulled from the GitLab environment "confluence-sync"
     # Configure them under Settings → CI/CD → Variables (scoped to the environment)
