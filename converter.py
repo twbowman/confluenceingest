@@ -74,7 +74,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
         body = body_match.group(1).strip() if body_match else ""
         # Strip any remaining inline HTML tags from the body
         body = re.sub(r"<[^>]+>", "", body).strip()
-        return f"- {checkbox} {body}"
+        return f"- {checkbox} {body}\n"
 
     cleaned = re.sub(
         r"<ac:task>.*?</ac:task>", _convert_task, cleaned, flags=re.DOTALL
