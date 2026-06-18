@@ -12,6 +12,7 @@ default:
   tags:
     - do.small
   before_script:
+    - microdnf install -y tar && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
 
@@ -24,6 +25,7 @@ default:
 #   rules:
 #     - if: $CI_PIPELINE_SOURCE == "push"
 #   before_script:
+#     - microdnf install -y tar && microdnf clean all
 #     - curl -LsSf https://astral.sh/uv/install.sh | sh
 #     - export PATH="$HOME/.local/bin:$PATH"
 #     - uv pip install --system --no-cache ruff mypy
@@ -42,6 +44,7 @@ default:
 #   rules:
 #     - if: $CI_PIPELINE_SOURCE == "push"
 #   before_script:
+#     - microdnf install -y tar && microdnf clean all
 #     - curl -LsSf https://astral.sh/uv/install.sh | sh
 #     - export PATH="$HOME/.local/bin:$PATH"
 #     - uv pip install --system --no-cache bandit
@@ -53,6 +56,7 @@ default:
 #   rules:
 #     - if: $CI_PIPELINE_SOURCE == "push"
 #   before_script:
+#     - microdnf install -y tar && microdnf clean all
 #     - curl -LsSf https://astral.sh/uv/install.sh | sh
 #     - export PATH="$HOME/.local/bin:$PATH"
 #     - uv pip install --system --no-cache safety
@@ -70,9 +74,9 @@ confluence-sync:
   rules:
     - when: manual
   before_script:
+    - microdnf install -y tar git openssh-clients && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
-    - microdnf install -y git openssh-clients && microdnf clean all
     - uv pip install --system --no-cache -r requirements.txt
     # Set up SSH key for pushing to the knowledge base repo
     - mkdir -p ~/.ssh
