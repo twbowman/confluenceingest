@@ -59,6 +59,29 @@ def confluence_html_to_markdown(html_content: str) -> str:
         flags=re.DOTALL,
     )
 
+    # Task lists (checklists) → GitHub-style Markdown checkboxes
+    def _convert_task(match: re.Match) -> str:
+        task_html = match.group(0)
+        status_match = re.search(
+            r"<ac:task-status>(.*?)</ac:task-status>", task_html
+        )
+        checked = status_match and status_match.group(1).strip().lower() == "complete"
+        checkbox = "[x]" if checked else "[ ]"
+        # Extract the task body text (inside <ac:task-body>)
+        body_match = re.search(
+            r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
+        )
+        body = body_match.group(1).strip() if body_match else ""
+        # Strip any remaining inline HTML tags from the body
+        body = re.sub(r"<[^>]+>", "", body).strip()
+        return f"- {checkbox} {body}"
+
+    cleaned = re.sub(
+        r"<ac:task>.*?</ac:task>", _convert_task, cleaned, flags=re.DOTALL
+    )
+    # Remove the wrapping task-list tags (individual tasks already converted above)
+    cleaned = re.sub(r"<ac:task-list>|</ac:task-list>", "", cleaned)
+
     # Remove remaining Confluence-specific XML tags
     cleaned = re.sub(r"<ac:[^>]*>|</ac:[^>]*>", "", cleaned)
     cleaned = re.sub(r"<ri:[^>]*>|</ri:[^>]*>", "", cleaned)
