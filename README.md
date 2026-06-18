@@ -109,6 +109,9 @@ python sync.py --no-push
 
 # Push to git but keep the local clone on disk (for inspection/debugging)
 python sync.py --keep-local
+
+# Force re-convert all pages (ignores sync state — use after converter changes)
+python sync.py --force
 ```
 
 ## How It Works
