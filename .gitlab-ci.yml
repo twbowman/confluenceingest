@@ -10,7 +10,8 @@ stages:
 default:
   image: registry.access.redhat.com/ubi9/python-312:latest
   before_script:
-    - microdnf install -y python3.12-pip && microdnf clean all
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
 
 # ─────────────────────────────────────────────────────────────
 # Lint & Format — runs on every push
@@ -21,9 +22,10 @@ lint:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y python3.12-pip && microdnf clean all
-    - pip install --no-cache-dir ruff mypy
-    - pip install --no-cache-dir -r requirements.txt
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv pip install --system --no-cache ruff mypy
+    - uv pip install --system --no-cache -r requirements.txt
   script:
     - ruff check .
     - ruff format --check .
@@ -38,8 +40,9 @@ bandit:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y python3.12-pip && microdnf clean all
-    - pip install --no-cache-dir bandit
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv pip install --system --no-cache bandit
   script:
     - bandit -r . -x ./venv,./.venv -ll
 
@@ -48,8 +51,9 @@ safety:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y python3.12-pip && microdnf clean all
-    - pip install --no-cache-dir safety
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv pip install --system --no-cache safety
   script:
     - safety check -r requirements.txt
   allow_failure: true
@@ -64,8 +68,10 @@ confluence-sync:
   rules:
     - when: manual
   before_script:
-    - microdnf install -y python3.12-pip git openssh-clients && microdnf clean all
-    - pip install --no-cache-dir -r requirements.txt
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - microdnf install -y git openssh-clients && microdnf clean all
+    - uv pip install --system --no-cache -r requirements.txt
     # Set up SSH key for pushing to the knowledge base repo
     - mkdir -p ~/.ssh
     - echo "$KB_GIT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
