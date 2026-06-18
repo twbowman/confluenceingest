@@ -81,7 +81,7 @@ def save_sync_state(space_dir: str, state: dict):
     )
 
 
-def sync_space(space_key: str, dry_run: bool = False) -> dict:
+def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> dict:
     """
     Sync a single Confluence space into its subdirectory.
 
@@ -109,9 +109,9 @@ def sync_space(space_key: str, dry_run: bool = False) -> dict:
         title = page["title"]
         version = page.get("version", {}).get("number", 0)
 
-        # Check if page has changed since last sync
+        # Check if page has changed since last sync (skip if --force)
         prev = previous_state.get(page_id, {})
-        if prev.get("version") == version:
+        if not force and prev.get("version") == version:
             stats["unchanged"] += 1
             new_state[page_id] = prev
             continue
@@ -154,7 +154,7 @@ def sync_space(space_key: str, dry_run: bool = False) -> dict:
     return stats
 
 
-def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
+def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, force: bool = False):
     """Run the Confluence → Markdown sync for all configured spaces."""
     print("=" * 60)
     print("Confluence → Markdown Sync")
@@ -165,6 +165,9 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
         raise ValueError("Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)")
 
     print(f"\nSpaces to sync: {', '.join(space_keys)}")
+
+    if force:
+        print("  (FORCE — ignoring sync state, re-converting all pages)")
 
     # Step 1: Pull (clone) the knowledge base repo from GitLab
     if not dry_run and push:
@@ -181,7 +184,7 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False):
         print(f"Syncing space: {space_key}")
         print(f"{'─' * 60}")
 
-        stats = sync_space(space_key, dry_run=dry_run)
+        stats = sync_space(space_key, dry_run=dry_run, force=force)
 
         for key in total_stats:
             total_stats[key] += stats[key]
@@ -229,8 +232,13 @@ def main():
         action="store_true",
         help="Keep the cloned knowledge base repo on disk after pushing (skip cleanup)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-convert all pages regardless of sync state (use after converter changes)",
+    )
     args = parser.parse_args()
-    sync(dry_run=args.dry_run, push=not args.no_push, keep_local=args.keep_local)
+    sync(dry_run=args.dry_run, push=not args.no_push, keep_local=args.keep_local, force=args.force)
 
 
 if __name__ == "__main__":
