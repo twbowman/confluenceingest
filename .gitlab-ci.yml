@@ -4,12 +4,18 @@ stages:
   - sync
 
 # ─────────────────────────────────────────────────────────────
+# Base: UBI 9 Python 3.12
+# ─────────────────────────────────────────────────────────────
+
+default:
+  image: registry.access.redhat.com/ubi9/python-312:latest
+
+# ─────────────────────────────────────────────────────────────
 # Lint & Format — runs on every push
 # ─────────────────────────────────────────────────────────────
 
 lint:
   stage: lint
-  image: python:3.12-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
@@ -26,7 +32,6 @@ lint:
 
 bandit:
   stage: security
-  image: python:3.12-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
@@ -36,7 +41,6 @@ bandit:
 
 safety:
   stage: security
-  image: python:3.12-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
@@ -51,12 +55,11 @@ safety:
 
 confluence-sync:
   stage: sync
-  image: python:3.12-slim
   environment: confluence-sync
   rules:
     - when: manual
   before_script:
-    - apt-get update && apt-get install -y git openssh-client
+    - microdnf install -y git openssh-clients && microdnf clean all
     - pip install --no-cache-dir -r requirements.txt
     # Set up SSH key for pushing to the knowledge base repo
     - mkdir -p ~/.ssh
