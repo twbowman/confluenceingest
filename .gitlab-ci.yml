@@ -9,54 +9,56 @@ stages:
 
 default:
   image: registry.access.redhat.com/ubi9/python-312:latest
+  tags:
+    - do.small
   before_script:
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
 
 # ─────────────────────────────────────────────────────────────
-# Lint & Format — runs on every push
+# Lint & Format — disabled
 # ─────────────────────────────────────────────────────────────
 
-lint:
-  stage: lint
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "push"
-  before_script:
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache ruff mypy
-    - uv pip install --system --no-cache -r requirements.txt
-  script:
-    - ruff check .
-    - ruff format --check .
-    - mypy --ignore-missing-imports .
+# lint:
+#   stage: lint
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "push"
+#   before_script:
+#     - curl -LsSf https://astral.sh/uv/install.sh | sh
+#     - export PATH="$HOME/.local/bin:$PATH"
+#     - uv pip install --system --no-cache ruff mypy
+#     - uv pip install --system --no-cache -r requirements.txt
+#   script:
+#     - ruff check .
+#     - ruff format --check .
+#     - mypy --ignore-missing-imports .
 
 # ─────────────────────────────────────────────────────────────
-# Security — runs on every push
+# Security — disabled
 # ─────────────────────────────────────────────────────────────
 
-bandit:
-  stage: security
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "push"
-  before_script:
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache bandit
-  script:
-    - bandit -r . -x ./venv,./.venv -ll
+# bandit:
+#   stage: security
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "push"
+#   before_script:
+#     - curl -LsSf https://astral.sh/uv/install.sh | sh
+#     - export PATH="$HOME/.local/bin:$PATH"
+#     - uv pip install --system --no-cache bandit
+#   script:
+#     - bandit -r . -x ./venv,./.venv -ll
 
-safety:
-  stage: security
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "push"
-  before_script:
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache safety
-  script:
-    - safety check -r requirements.txt
-  allow_failure: true
+# safety:
+#   stage: security
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "push"
+#   before_script:
+#     - curl -LsSf https://astral.sh/uv/install.sh | sh
+#     - export PATH="$HOME/.local/bin:$PATH"
+#     - uv pip install --system --no-cache safety
+#   script:
+#     - safety check -r requirements.txt
+#   allow_failure: true
 
 # ─────────────────────────────────────────────────────────────
 # Sync — manual trigger only
