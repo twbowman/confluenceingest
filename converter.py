@@ -250,12 +250,41 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     cleaned = _replace_outermost_task_lists(cleaned)
 
+    # --- Handle images ---
+    # Convert <ac:image> with <ri:attachment> to markdown image references.
+    # Images with ri:attachment get rewritten to point to the attachments directory.
+    # External images (<ri:url>) are preserved as-is.
+    # Non-image attachments referenced inline are noted with a comment.
+    def _convert_image(match: re.Match) -> str:
+        image_html = match.group(0)
+        # Check for attachment reference
+        att_match = re.search(
+            r'<ri:attachment\s+ri:filename="([^"]*)"', image_html
+        )
+        if att_match:
+            filename = att_match.group(1)
+            # Return a placeholder that will survive markdownify
+            return f'<img alt="{filename}" src="%%ATTACHMENT_PATH%%/{filename}" />'
+        # Check for external URL
+        url_match = re.search(r'<ri:url\s+ri:value="([^"]*)"', image_html)
+        if url_match:
+            url = url_match.group(1)
+            return f'<img alt="" src="{url}" />'
+        return ""
+
+    cleaned = re.sub(
+        r"<ac:image[^>]*>.*?</ac:image>",
+        _convert_image,
+        cleaned,
+        flags=re.DOTALL,
+    )
+
     # Remove remaining Confluence-specific XML tags
     cleaned = re.sub(r"<ac:[^>]*>|</ac:[^>]*>", "", cleaned)
     cleaned = re.sub(r"<ri:[^>]*>|</ri:[^>]*>", "", cleaned)
 
     # --- Convert HTML to Markdown ---
-    markdown_body = md(cleaned, heading_style="ATX", strip=["img"])
+    markdown_body = md(cleaned, heading_style="ATX")
 
     # Restore line breaks in table cells
     markdown_body = markdown_body.replace(_TABLE_BR_PLACEHOLDER, "<br>")

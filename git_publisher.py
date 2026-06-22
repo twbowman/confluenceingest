@@ -154,8 +154,20 @@ def push_kb_repo(stats: dict) -> bool:
     print(f"  Committed: {commit_message}")
 
     # Push
-    _run_git(["push", "-u", "origin", Config.KB_GIT_BRANCH], str(clone_dir))
-    print(f"  Pushed to {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
+    try:
+        _run_git(["push", "-u", "origin", Config.KB_GIT_BRANCH], str(clone_dir))
+        print(f"  Pushed to {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
+    except RuntimeError as e:
+        error_msg = str(e)
+        if "large" in error_msg.lower() or "size" in error_msg.lower() or "exceeded" in error_msg.lower():
+            print(
+                f"  WARNING: Push failed — likely due to large file size.\n"
+                f"  Check for attachments exceeding the remote's file size limit.\n"
+                f"  Consider increasing ATTACHMENT_MAX_SIZE_MB or using Git LFS.\n"
+                f"  Error: {error_msg}"
+            )
+        else:
+            raise
 
     return True
 

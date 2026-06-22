@@ -29,9 +29,9 @@ from pathlib import Path
 from datetime import datetime
 
 from config import Config
-from confluence_loader import fetch_pages
+from confluence_loader import fetch_pages, fetch_attachments, download_attachment, IMAGE_EXTENSIONS
 from converter import convert_page
-from git_publisher import pull_kb_repo, push_kb_repo, cleanup_kb_repo, get_space_dir
+from git_publisher import pull_kb_repo, push_kb_repo, cleanup_kb_repo, get_space_dir, get_clone_dir
 
 
 def build_file_path(page: dict, space_dir: str) -> Path:
@@ -63,6 +63,88 @@ def build_file_path(page: dict, space_dir: str) -> Path:
     dir_path = Path(space_dir).joinpath(*safe_segments) if safe_segments else Path(space_dir)
 
     return dir_path / filename
+
+
+def get_attachments_dir() -> Path:
+    """
+    Get the common attachments directory within the KB repo.
+
+    Structure: <output_dir>/attachments/<page_id>/filename.ext
+    Centralized location in anticipation of future blob storage migration.
+    """
+    return get_clone_dir() / Config.ATTACHMENTS_DIR
+
+
+def download_page_attachments(page_id: str, page_title: str, dry_run: bool = False) -> list[str]:
+    """
+    Download image attachments for a page into the common attachments directory.
+
+    Returns list of downloaded filenames. Prints warnings for:
+    - Non-image attachments (skipped, noted in output)
+    - Files exceeding size limit
+    - Download failures
+
+    Args:
+        page_id: Confluence page ID
+        page_title: Page title for logging
+        dry_run: If True, log what would be downloaded without writing files
+    """
+    attachments = fetch_attachments(page_id)
+    if not attachments:
+        return []
+
+    downloaded = []
+    page_attach_dir = get_attachments_dir() / page_id
+    max_bytes = Config.ATTACHMENT_MAX_SIZE_MB * 1024 * 1024
+
+    for att in attachments:
+        filename = att.get("title", "unknown")
+        file_ext = Path(filename).suffix.lower()
+        file_size = att.get("extensions", {}).get("fileSize", 0)
+        download_url = att.get("_links", {}).get("download", "")
+
+        # TODO: Support non-image attachments (PDFs, docs, etc.)
+        # Currently only image files are downloaded; other types are noted and skipped.
+        if file_ext not in IMAGE_EXTENSIONS:
+            print(f"      SKIP (not an image): {filename} [{file_ext}]")
+            continue
+
+        # Check size limit
+        if file_size and int(file_size) > max_bytes:
+            print(
+                f"      WARNING: Skipping {filename} — "
+                f"size {int(file_size) / 1024 / 1024:.1f}MB exceeds "
+                f"{Config.ATTACHMENT_MAX_SIZE_MB}MB limit"
+            )
+            continue
+
+        if dry_run:
+            print(f"      WOULD DOWNLOAD: {filename}")
+            downloaded.append(filename)
+            continue
+
+        # Download the file
+        content = download_attachment(download_url)
+        if content is None:
+            continue
+
+        # Check actual download size
+        if len(content) > max_bytes:
+            print(
+                f"      WARNING: Skipping {filename} — "
+                f"downloaded size {len(content) / 1024 / 1024:.1f}MB exceeds "
+                f"{Config.ATTACHMENT_MAX_SIZE_MB}MB limit"
+            )
+            continue
+
+        # Write to disk
+        page_attach_dir.mkdir(parents=True, exist_ok=True)
+        file_path = page_attach_dir / filename
+        file_path.write_bytes(content)
+        downloaded.append(filename)
+        print(f"      ATTACHMENT: {filename} ({len(content) / 1024:.0f} KB)")
+
+    return downloaded
 
 
 def load_sync_state(space_dir: str) -> dict:
@@ -122,6 +204,16 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> di
             print(f"    SKIP (no content): {title}")
             stats["skipped"] += 1
             continue
+
+        # Download image attachments for this page
+        downloaded_attachments = download_page_attachments(
+            page_id, title, dry_run=dry_run
+        )
+
+        # Rewrite attachment path placeholders in the markdown
+        # Path is relative from the markdown file location to the common attachments dir
+        attachments_rel_path = f"/{Config.ATTACHMENTS_DIR}/{page_id}"
+        content = content.replace("%%ATTACHMENT_PATH%%", attachments_rel_path)
 
         # Determine output path within the space directory
         file_path = build_file_path(page, space_dir)

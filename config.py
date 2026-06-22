@@ -27,6 +27,11 @@ class Config:
     # Output — base directory; each space gets a subdirectory under this
     OUTPUT_DIR: str = os.getenv("OUTPUT_DIR", "./knowledge-base")
 
+    # Attachments
+    ATTACHMENTS_DIR: str = os.getenv("ATTACHMENTS_DIR", "attachments")
+    # Max attachment size in MB — files larger than this will be skipped with a warning
+    ATTACHMENT_MAX_SIZE_MB: int = int(os.getenv("ATTACHMENT_MAX_SIZE_MB", "50"))
+
     # Knowledge base Git repo
     KB_GIT_REPO_URL: str = os.getenv("KB_GIT_REPO_URL", "")
     KB_GIT_BRANCH: str = os.getenv("KB_GIT_BRANCH", "master")

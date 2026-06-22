@@ -359,3 +359,63 @@ class TestExistingConversions:
         result = confluence_html_to_markdown(html)
         assert "| A | B |" in result
         assert "| 1 | 2 |" in result
+
+
+# ─────────────────────────────────────────────────────────────
+# 5. Image and attachment handling
+# ─────────────────────────────────────────────────────────────
+
+
+class TestImageConversion:
+    """Confluence image macros should convert to markdown image references."""
+
+    def test_attachment_image_converts_to_markdown_img(self):
+        html = (
+            '<ac:image>'
+            '<ri:attachment ri:filename="screenshot.png" />'
+            '</ac:image>'
+        )
+        result = confluence_html_to_markdown(html)
+        assert "screenshot.png" in result
+        assert "%%ATTACHMENT_PATH%%" in result
+
+    def test_external_url_image_preserved(self):
+        html = (
+            '<ac:image>'
+            '<ri:url ri:value="https://example.com/logo.png" />'
+            '</ac:image>'
+        )
+        result = confluence_html_to_markdown(html)
+        assert "https://example.com/logo.png" in result
+
+    def test_image_not_stripped_from_output(self):
+        """Images should no longer be stripped — they should appear in output."""
+        html = (
+            "<p>Before</p>"
+            '<ac:image>'
+            '<ri:attachment ri:filename="diagram.png" />'
+            '</ac:image>'
+            "<p>After</p>"
+        )
+        result = confluence_html_to_markdown(html)
+        assert "diagram.png" in result
+        assert "Before" in result
+        assert "After" in result
+
+    def test_multiple_images_in_page(self):
+        html = (
+            '<ac:image><ri:attachment ri:filename="first.png" /></ac:image>'
+            '<ac:image><ri:attachment ri:filename="second.jpg" /></ac:image>'
+        )
+        result = confluence_html_to_markdown(html)
+        assert "first.png" in result
+        assert "second.jpg" in result
+
+    def test_image_with_attributes(self):
+        html = (
+            '<ac:image ac:width="500" ac:height="300">'
+            '<ri:attachment ri:filename="wide-image.png" />'
+            '</ac:image>'
+        )
+        result = confluence_html_to_markdown(html)
+        assert "wide-image.png" in result
