@@ -26,14 +26,14 @@ def _git_env() -> dict:
     return env
 
 
-def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
+def _run_git(args: list[str], cwd: str, timeout: int = 120) -> subprocess.CompletedProcess:
     """Run a git command in the specified directory."""
     result = subprocess.run(
         ["git"] + args,
         cwd=cwd,
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=timeout,
         env=_git_env(),
     )
     if result.returncode != 0:
@@ -153,21 +153,55 @@ def push_kb_repo(stats: dict) -> bool:
     _run_git(["commit", "-m", commit_message], str(clone_dir))
     print(f"  Committed: {commit_message}")
 
-    # Push
-    try:
-        _run_git(["push", "-u", "origin", Config.KB_GIT_BRANCH], str(clone_dir))
-        print(f"  Pushed to {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
-    except RuntimeError as e:
-        error_msg = str(e)
-        if "large" in error_msg.lower() or "size" in error_msg.lower() or "exceeded" in error_msg.lower():
-            print(
-                f"  WARNING: Push failed — likely due to large file size.\n"
-                f"  Check for attachments exceeding the remote's file size limit.\n"
-                f"  Consider increasing ATTACHMENT_MAX_SIZE_MB or using Git LFS.\n"
-                f"  Error: {error_msg}"
+    # Push — use increased timeout and buffer for large initial syncs
+    # Set a larger HTTP post buffer (500MB) to handle large pushes
+    _run_git(["config", "http.postBuffer", "524288000"], str(clone_dir))
+
+    max_retries = 3
+    push_timeout = 600  # 10 minutes for large pushes
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            _run_git(
+                ["push", "-u", "origin", Config.KB_GIT_BRANCH],
+                str(clone_dir),
+                timeout=push_timeout,
             )
-        else:
-            raise
+            print(f"  Pushed to {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
+            break
+        except (RuntimeError, subprocess.TimeoutExpired) as e:
+            error_msg = str(e)
+            is_timeout = isinstance(e, subprocess.TimeoutExpired) or "timeout" in error_msg.lower()
+            is_size_issue = any(
+                word in error_msg.lower()
+                for word in ["large", "size", "exceeded", "pack"]
+            )
+
+            if attempt < max_retries and is_timeout:
+                print(
+                    f"  Push attempt {attempt}/{max_retries} timed out — retrying "
+                    f"(timeout: {push_timeout}s)..."
+                )
+                push_timeout += 300  # Add 5 more minutes each retry
+                continue
+            elif is_size_issue:
+                print(
+                    f"  WARNING: Push failed — likely due to large file size.\n"
+                    f"  Check for attachments exceeding the remote's file size limit.\n"
+                    f"  Consider increasing ATTACHMENT_MAX_SIZE_MB or using Git LFS.\n"
+                    f"  Error: {error_msg}"
+                )
+                break
+            elif is_timeout:
+                print(
+                    f"  WARNING: Push timed out after {max_retries} attempts.\n"
+                    f"  The initial sync may be too large for a single push.\n"
+                    f"  Try running with fewer spaces or pushing manually:\n"
+                    f"    cd {clone_dir} && git push -u origin {Config.KB_GIT_BRANCH}"
+                )
+                break
+            else:
+                raise
 
     return True
 
