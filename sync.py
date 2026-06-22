@@ -186,6 +186,108 @@ def save_sync_state(space_dir: str, state: dict):
     )
 
 
+def generate_kb_readme(space_keys: list[str], stats: dict):
+    """
+    Generate a README.md for the knowledge base repo describing the layout,
+    spaces, and how to map them back to Confluence.
+    """
+    confluence_url = Config.CONFLUENCE_URL or "https://your-confluence-instance.com"
+    last_sync = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    spaces_table = "\n".join(
+        f"| `{key.lower()}/` | {key} | [{key}]({confluence_url}/display/{key}) |"
+        for key in space_keys
+    )
+
+    readme_content = f"""# Knowledge Base
+
+Auto-generated Markdown knowledge base synced from Confluence.
+
+**Source:** {confluence_url}
+**Last sync:** {last_sync}
+
+## Spaces
+
+| Directory | Space Key | Confluence Link |
+|-----------|-----------|-----------------|
+{spaces_table}
+
+## Repository Layout
+
+```
+knowledge-base/
+├── README.md                          ← This file (auto-generated)
+├── <space_key>/                       ← One directory per Confluence space
+│   ├── .sync-state.json               ← Tracks page versions for incremental sync
+│   ├── attachments/                   ← All attachments for pages in this space
+│   │   └── <page_id>/                 ← Attachments grouped by page ID
+│   │       ├── screenshot.png
+│   │       └── document.pdf
+│   └── <page-hierarchy>/              ← Mirrors Confluence page tree
+│       └── page-title.md
+└── ...
+```
+
+## Mapping to Confluence
+
+### Pages
+
+Each Markdown file corresponds to a Confluence page. The YAML frontmatter at the top contains:
+
+```yaml
+id: "12345"                    # Confluence page ID
+title: Page Title              # Original page title
+space: ENG                     # Space key
+source_url: https://...        # Direct link back to Confluence
+last_modified: "2026-..."      # When the page was last edited in Confluence
+version: 7                     # Confluence page version number
+```
+
+To find the original Confluence page, use the `source_url` in the frontmatter or navigate to:
+`{confluence_url}/pages/<id>`
+
+### Attachments
+
+Attachments are stored under `<space_key>/attachments/<page_id>/`. The page ID in the path
+corresponds to the `id` field in the markdown frontmatter.
+
+To find attachments for a specific page in Confluence:
+`{confluence_url}/pages/viewpageattachments.action?pageId=<page_id>`
+
+### Directory Structure
+
+The directory hierarchy mirrors the Confluence page tree:
+- Top-level pages become direct children of the space directory
+- Child pages nest in subdirectories named after their parent
+
+Example: A page at **Engineering > Infrastructure > Deployment Runbook** in Confluence
+becomes `eng/engineering/infrastructure/deployment-runbook.md` in this repo.
+
+## Sync Behavior
+
+- **Incremental:** Only pages that have changed in Confluence since the last sync are re-exported
+- **Attachment versioning:** Only new or updated attachments are downloaded
+- **Force sync:** Running with `--force` re-exports all pages regardless of version state
+- **State tracking:** Each space has a `.sync-state.json` that tracks page and attachment versions
+
+## Consuming This Data
+
+| Use Case | Approach |
+|----------|----------|
+| RAG pipeline | Parse `.md` files, extract frontmatter for metadata, chunk content, embed |
+| Static docs site | Point MkDocs/Docusaurus at the space directories |
+| Full-text search | Index with Elasticsearch, Meilisearch, or Typesense |
+| AI assistants | Feed markdown + frontmatter as context |
+
+---
+
+*This README is regenerated on each sync run.*
+"""
+
+    readme_path = get_clone_dir() / "README.md"
+    readme_path.write_text(readme_content.strip() + "\n", encoding="utf-8")
+
+
 def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> dict:
     """
     Sync a single Confluence space into its subdirectory.
@@ -329,13 +431,17 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
     print(f"  Skipped:   {total_stats['skipped']}")
     print(f"{'═' * 60}")
 
-    # Step 3: Commit and push to GitLab (single commit for all spaces)
+    # Step 3: Generate KB repo README
+    if not dry_run:
+        generate_kb_readme(space_keys, total_stats)
+
+    # Step 4: Commit and push to GitLab (single commit for all spaces)
     if not dry_run and push and (total_stats["created"] > 0 or total_stats["updated"] > 0):
         push_kb_repo(total_stats)
     elif not push:
         print("\n  Git push skipped (--no-push)")
 
-    # Step 4: Cleanup
+    # Step 5: Cleanup
     if not dry_run and push and not keep_local:
         cleanup_kb_repo()
     elif keep_local:
