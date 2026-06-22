@@ -167,9 +167,33 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
                 task_html = html[task_start:task_end]
 
+                # Extract status only from the task's own level (before any nested task)
+                # This prevents picking up a child task's status when the parent's
+                # status appears after the body in some Confluence versions.
+                body_start_pos = task_html.find("<ac:task-body>")
+                nested_task_pos = task_html.find("<ac:task>", len("<ac:task>"))
+                # Look for status in the safest region: before body or before nested task
+                search_boundary = len(task_html)
+                if body_start_pos != -1:
+                    search_boundary = body_start_pos
+                if nested_task_pos != -1 and nested_task_pos < search_boundary:
+                    search_boundary = nested_task_pos
+
+                # First try: find status before the body/nested content
+                status_region = task_html[:search_boundary]
                 status_match = re.search(
-                    r"<ac:task-status>(.*?)</ac:task-status>", task_html
+                    r"<ac:task-status>(.*?)</ac:task-status>", status_region
                 )
+                if not status_match:
+                    # Fallback: status might be after the body (some Confluence versions)
+                    # Look after the last </ac:task-body> at the top level
+                    body_end_pos = task_html.rfind("</ac:task-body>")
+                    if body_end_pos != -1:
+                        after_body = task_html[body_end_pos:]
+                        status_match = re.search(
+                            r"<ac:task-status>(.*?)</ac:task-status>", after_body
+                        )
+
                 # Confluence uses "complete" or "DONE" for checked; "incomplete" for unchecked
                 checked = status_match and status_match.group(1).strip().lower() != "incomplete"
                 checkbox = "[x]" if checked else "[ ]"
