@@ -79,7 +79,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
         return "@unknown"
 
     cleaned = re.sub(
-        r"<ac:link>\s*<ri:user[^/]*/>\s*</ac:link>",
+        r"<ac:link[^>]*>\s*<ri:user[^/]*/>\s*</ac:link>",
         _convert_user_mention,
         cleaned,
         flags=re.DOTALL,

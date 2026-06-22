@@ -479,3 +479,35 @@ class TestUserMentions:
         result = confluence_html_to_markdown(html)
         assert "@alice" in result
         assert "@bob" in result
+
+
+    def test_mention_with_ac_link_attributes(self):
+        """ac:link can have extra attributes like ac:anchor — should still resolve."""
+        html = '<p><ac:link ac:anchor=""><ri:user ri:userkey="abc123" /></ac:link> did this</p>'
+        result = confluence_html_to_markdown(html)
+        assert "@abc123" in result
+
+    def test_mention_in_task_with_nested_list(self):
+        """User mention in a task body should not break nested task list parsing."""
+        html = (
+            "<ac:task-list>"
+            "<ac:task><ac:task-id>1</ac:task-id>"
+            "<ac:task-status>incomplete</ac:task-status>"
+            '<ac:task-body><ac:link ac:anchor=""><ri:user ri:userkey="xyz" /></ac:link> Review</ac:task-body>'
+            "</ac:task>"
+            "<ac:task-list>"
+            "<ac:task><ac:task-id>2</ac:task-id>"
+            "<ac:task-status>complete</ac:task-status>"
+            "<ac:task-body>Nested item</ac:task-body>"
+            "</ac:task>"
+            "</ac:task-list>"
+            "</ac:task-list>"
+        )
+        result = confluence_html_to_markdown(html)
+        assert "@xyz" in result
+        assert "Nested item" in result
+        lines = result.splitlines()
+        parent = next(l for l in lines if "@xyz" in l)
+        child = next(l for l in lines if "Nested item" in l)
+        assert parent.startswith("- [ ]")
+        assert child.startswith("  - [x]")
