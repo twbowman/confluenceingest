@@ -29,7 +29,7 @@ from pathlib import Path
 from datetime import datetime
 
 from config import Config
-from confluence_loader import fetch_pages, fetch_attachments, download_attachment, IMAGE_EXTENSIONS
+from confluence_loader import fetch_pages, fetch_attachments, download_attachment
 from converter import convert_page
 from git_publisher import pull_kb_repo, push_kb_repo, cleanup_kb_repo, get_space_dir, get_clone_dir
 
@@ -65,48 +65,63 @@ def build_file_path(page: dict, space_dir: str) -> Path:
     return dir_path / filename
 
 
-def get_attachments_dir() -> Path:
+def get_attachments_dir(space_key: str) -> Path:
     """
-    Get the common attachments directory within the KB repo.
+    Get the attachments directory for a space within the KB repo.
 
-    Structure: <output_dir>/attachments/<page_id>/filename.ext
-    Centralized location in anticipation of future blob storage migration.
+    Structure: <output_dir>/<space_key>/attachments/<page_id>/filename.ext
+    Each space has its own attachments directory, in anticipation of
+    future blob storage migration (one bucket per space).
     """
-    return get_clone_dir() / Config.ATTACHMENTS_DIR
+    return get_space_dir(space_key) / Config.ATTACHMENTS_DIR
 
 
-def download_page_attachments(page_id: str, page_title: str, dry_run: bool = False) -> list[str]:
+def download_page_attachments(
+    page_id: str,
+    page_title: str,
+    space_key: str,
+    previous_attachments: dict,
+    dry_run: bool = False,
+    force: bool = False,
+) -> tuple[list[str], dict]:
     """
-    Download image attachments for a page into the common attachments directory.
+    Download attachments for a page, skipping unchanged files.
 
-    Returns list of downloaded filenames. Prints warnings for:
-    - Non-image attachments (skipped, noted in output)
-    - Files exceeding size limit
-    - Download failures
+    Compares attachment versions against previous sync state to avoid
+    re-downloading identical files.
 
     Args:
         page_id: Confluence page ID
         page_title: Page title for logging
+        space_key: Space key (for directory structure)
+        previous_attachments: Dict of {filename: {version, size}} from last sync
         dry_run: If True, log what would be downloaded without writing files
+        force: If True, download all regardless of version
+
+    Returns:
+        Tuple of (list of downloaded filenames, dict of new attachment state)
     """
     attachments = fetch_attachments(page_id)
     if not attachments:
-        return []
+        return [], {}
 
     downloaded = []
-    page_attach_dir = get_attachments_dir() / page_id
+    new_attachment_state = {}
+    page_attach_dir = get_attachments_dir(space_key) / page_id
     max_bytes = Config.ATTACHMENT_MAX_SIZE_MB * 1024 * 1024
 
     for att in attachments:
         filename = att.get("title", "unknown")
         file_ext = Path(filename).suffix.lower()
         file_size = att.get("extensions", {}).get("fileSize", 0)
+        att_version = att.get("version", {}).get("number", 0)
         download_url = att.get("_links", {}).get("download", "")
 
-        # TODO: Support non-image attachments (PDFs, docs, etc.)
-        # Currently only image files are downloaded; other types are noted and skipped.
-        if file_ext not in IMAGE_EXTENSIONS:
-            print(f"      SKIP (not an image): {filename} [{file_ext}]")
+        # Check if attachment has changed since last sync
+        prev = previous_attachments.get(filename, {})
+        if not force and prev.get("version") == att_version:
+            # Unchanged — keep the previous state, skip download
+            new_attachment_state[filename] = prev
             continue
 
         # Check size limit
@@ -119,8 +134,12 @@ def download_page_attachments(page_id: str, page_title: str, dry_run: bool = Fal
             continue
 
         if dry_run:
-            print(f"      WOULD DOWNLOAD: {filename}")
+            print(f"      WOULD DOWNLOAD: {filename} (v{att_version})")
             downloaded.append(filename)
+            new_attachment_state[filename] = {
+                "version": att_version,
+                "size": int(file_size) if file_size else 0,
+            }
             continue
 
         # Download the file
@@ -142,9 +161,13 @@ def download_page_attachments(page_id: str, page_title: str, dry_run: bool = Fal
         file_path = page_attach_dir / filename
         file_path.write_bytes(content)
         downloaded.append(filename)
-        print(f"      ATTACHMENT: {filename} ({len(content) / 1024:.0f} KB)")
+        new_attachment_state[filename] = {
+            "version": att_version,
+            "size": len(content),
+        }
+        print(f"      ATTACHMENT: {filename} v{att_version} ({len(content) / 1024:.0f} KB)")
 
-    return downloaded
+    return downloaded, new_attachment_state
 
 
 def load_sync_state(space_dir: str) -> dict:
@@ -205,14 +228,18 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> di
             stats["skipped"] += 1
             continue
 
-        # Download image attachments for this page
-        downloaded_attachments = download_page_attachments(
-            page_id, title, dry_run=dry_run
+        # Download attachments for this page (version-aware, skips unchanged)
+        prev_attachments = prev.get("attachments", {})
+        downloaded_attachments, new_attachment_state = download_page_attachments(
+            page_id, title, space_key,
+            previous_attachments=prev_attachments,
+            dry_run=dry_run,
+            force=force,
         )
 
         # Rewrite attachment path placeholders in the markdown
-        # Path is relative from the markdown file location to the common attachments dir
-        attachments_rel_path = f"/{Config.ATTACHMENTS_DIR}/{page_id}"
+        # Path is relative to the KB repo root: /<space_key>/attachments/<page_id>
+        attachments_rel_path = f"/{space_key.lower()}/{Config.ATTACHMENTS_DIR}/{page_id}"
         content = content.replace("%%ATTACHMENT_PATH%%", attachments_rel_path)
 
         # Determine output path within the space directory
@@ -236,6 +263,7 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> di
             "version": version,
             "title": title,
             "file_path": str(file_path),
+            "attachments": new_attachment_state,
             "synced_at": datetime.now().isoformat(),
         }
 
@@ -264,6 +292,13 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
     # Step 1: Pull (clone) the knowledge base repo from GitLab
     if not dry_run and push:
         pull_kb_repo()
+
+    # Cleanup: remove legacy root-level attachments/ dir (migrated to per-space)
+    legacy_attachments = get_clone_dir() / "attachments"
+    if legacy_attachments.exists() and legacy_attachments.is_dir():
+        import shutil
+        shutil.rmtree(legacy_attachments)
+        print("  Removed legacy root-level attachments/ directory (now per-space)")
 
     if dry_run:
         print("  (DRY RUN — no files will be written)\n")

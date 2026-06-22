@@ -3,9 +3,6 @@
 import requests
 from config import Config
 
-# Image file extensions we download (all others are noted and skipped)
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico"}
-
 
 def _get_headers() -> dict:
     """Build request headers with Bearer token authentication."""
