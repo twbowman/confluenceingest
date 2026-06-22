@@ -170,7 +170,8 @@ def confluence_html_to_markdown(html_content: str) -> str:
                 status_match = re.search(
                     r"<ac:task-status>(.*?)</ac:task-status>", task_html
                 )
-                checked = status_match and status_match.group(1).strip().lower() == "complete"
+                # Confluence uses "complete" or "DONE" for checked; "incomplete" for unchecked
+                checked = status_match and status_match.group(1).strip().lower() != "incomplete"
                 checkbox = "[x]" if checked else "[ ]"
 
                 # Extract body — use greedy match to get the full body including nested content
