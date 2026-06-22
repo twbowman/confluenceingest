@@ -511,3 +511,65 @@ class TestUserMentions:
         child = next(l for l in lines if "Nested item" in l)
         assert parent.startswith("- [ ]")
         assert child.startswith("  - [x]")
+
+
+
+# ─────────────────────────────────────────────────────────────
+# 7. Nested task-list inside task-body (Confluence common pattern)
+# ─────────────────────────────────────────────────────────────
+
+
+class TestNestedTaskInsideBody:
+    """Confluence often nests task-lists inside the parent task's body tag."""
+
+    def test_nested_list_inside_task_body(self):
+        """Child tasks nested inside parent's ac:task-body should render indented."""
+        html = (
+            "<ac:task-list><ac:task><ac:task-id>1</ac:task-id>"
+            "<ac:task-status>incomplete</ac:task-status>"
+            "<ac:task-body><span>Parent text</span>"
+            "<ac:task-list><ac:task><ac:task-id>2</ac:task-id>"
+            "<ac:task-status>incomplete</ac:task-status>"
+            "<ac:task-body><span>Child text</span></ac:task-body>"
+            "</ac:task></ac:task-list>"
+            "</ac:task-body></ac:task></ac:task-list>"
+        )
+        result = confluence_html_to_markdown(html)
+        lines = result.splitlines()
+        parent = next(l for l in lines if "Parent text" in l)
+        child = next(l for l in lines if "Child text" in l)
+        assert parent.startswith("- [ ] Parent text")
+        assert child.startswith("  - [ ] Child text")
+
+    def test_task_uuid_does_not_leak(self):
+        """ac:task-uuid hex content should not appear in output."""
+        html = (
+            "<ac:task-list><ac:task><ac:task-id>689</ac:task-id>"
+            "<ac:task-uuid>ac8134abcdef0123</ac:task-uuid>"
+            "<ac:task-status>complete</ac:task-status>"
+            "<ac:task-body><span>Clean task</span></ac:task-body>"
+            "</ac:task></ac:task-list>"
+        )
+        result = confluence_html_to_markdown(html)
+        assert "ac8134" not in result
+        assert "689" not in result
+        assert "- [x] Clean task" in result
+
+    def test_nested_in_body_with_user_mention(self):
+        """User mention in parent + nested child inside body should both render."""
+        html = (
+            "<ac:task-list><ac:task><ac:task-id>1</ac:task-id>"
+            "<ac:task-status>incomplete</ac:task-status>"
+            "<ac:task-body><span>Review by @someone</span>"
+            "<ac:task-list><ac:task><ac:task-id>2</ac:task-id>"
+            "<ac:task-status>complete</ac:task-status>"
+            "<ac:task-body><span>Sub-item done</span></ac:task-body>"
+            "</ac:task></ac:task-list>"
+            "</ac:task-body></ac:task></ac:task-list>"
+        )
+        result = confluence_html_to_markdown(html)
+        assert "@someone" in result
+        assert "Sub-item done" in result
+        lines = result.splitlines()
+        child = next(l for l in lines if "Sub-item" in l)
+        assert child.startswith("  - [x]")

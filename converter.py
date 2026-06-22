@@ -138,11 +138,33 @@ def confluence_html_to_markdown(html_content: str) -> str:
                 items.extend(_parse_task_list(inner_html, indent + 1))
                 pos = end_pos
             else:
-                # Found a task
-                task_end = html.find("</ac:task>", task_start)
+                # Found a task — need to find its matching </ac:task> (handle nesting)
+                depth = 0
+                search_pos = task_start
+                task_end = -1
+                while search_pos < len(html):
+                    next_open = html.find("<ac:task>", search_pos + 1 if search_pos == task_start else search_pos)
+                    next_close = html.find("</ac:task>", search_pos + 1 if search_pos == task_start else search_pos)
+                    if next_close == -1:
+                        break
+                    # First iteration: count the opening tag we started with
+                    if search_pos == task_start:
+                        depth = 1
+                        search_pos = task_start + len("<ac:task>")
+                        continue
+                    if next_open != -1 and next_open < next_close:
+                        depth += 1
+                        search_pos = next_open + len("<ac:task>")
+                    else:
+                        depth -= 1
+                        if depth == 0:
+                            task_end = next_close + len("</ac:task>")
+                            break
+                        search_pos = next_close + len("</ac:task>")
+
                 if task_end == -1:
                     break
-                task_end += len("</ac:task>")
+
                 task_html = html[task_start:task_end]
 
                 status_match = re.search(
@@ -150,12 +172,31 @@ def confluence_html_to_markdown(html_content: str) -> str:
                 )
                 checked = status_match and status_match.group(1).strip().lower() == "complete"
                 checkbox = "[x]" if checked else "[ ]"
+
+                # Extract body — use greedy match to get the full body including nested content
                 body_match = re.search(
-                    r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
+                    r"<ac:task-body>(.*)</ac:task-body>", task_html, re.DOTALL
                 )
-                body = body_match.group(1).strip() if body_match else ""
-                body = re.sub(r"<[^>]+>", "", body).strip()
-                items.append(f"{prefix}- {checkbox} {body}")
+                body_html = body_match.group(1).strip() if body_match else ""
+
+                # Check if the body contains a nested task-list
+                nested_in_body = re.search(
+                    r"(<ac:task-list>.*</ac:task-list>)", body_html, re.DOTALL
+                )
+                if nested_in_body:
+                    # Extract text before the nested list as this task's body
+                    text_before = body_html[:nested_in_body.start()]
+                    text_before = re.sub(r"<[^>]+>", "", text_before).strip()
+                    items.append(f"{prefix}- {checkbox} {text_before}")
+                    # Process the nested task-list as children
+                    nested_html = nested_in_body.group(1)
+                    inner = nested_html[len("<ac:task-list>"):-len("</ac:task-list>")]
+                    items.extend(_parse_task_list(inner, indent + 1))
+                else:
+                    # No nested list — just extract the text
+                    body = re.sub(r"<[^>]+>", "", body_html).strip()
+                    items.append(f"{prefix}- {checkbox} {body}")
+
                 pos = task_end
 
         return items
