@@ -61,57 +61,194 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     # Task lists (checklists) → GitHub-style Markdown checkboxes
     # Handle differently inside vs outside table cells
-    # Use a placeholder for line breaks inside tables that survives markdownify
+    # Use placeholders that survive markdownify
     _TABLE_BR_PLACEHOLDER = "%%BR%%"
+    _INDENT_PLACEHOLDER = "%%INDENT%%"
+
+    def _parse_task_list(html: str, indent: int = 0) -> list[str]:
+        """Recursively parse task lists, handling nested indentation."""
+        items = []
+        prefix = _INDENT_PLACEHOLDER * indent
+        # Find individual tasks at this level (not inside nested task-lists)
+        # Process the HTML sequentially to handle interleaved tasks and nested lists
+        pos = 0
+        while pos < len(html):
+            # Find the next task or nested task-list
+            task_start = html.find("<ac:task>", pos)
+            nested_start = html.find("<ac:task-list>", pos)
+
+            # No more tasks or nested lists
+            if task_start == -1 and nested_start == -1:
+                break
+
+            # Determine which comes first
+            if nested_start != -1 and (task_start == -1 or nested_start < task_start):
+                # Find the matching closing tag (handle nesting)
+                depth = 0
+                search_pos = nested_start
+                end_pos = -1
+                while search_pos < len(html):
+                    next_open = html.find("<ac:task-list>", search_pos)
+                    next_close = html.find("</ac:task-list>", search_pos)
+                    if next_close == -1:
+                        break
+                    if next_open != -1 and next_open < next_close:
+                        depth += 1
+                        search_pos = next_open + len("<ac:task-list>")
+                    else:
+                        depth -= 1
+                        if depth == 0:
+                            end_pos = next_close + len("</ac:task-list>")
+                            break
+                        search_pos = next_close + len("</ac:task-list>")
+
+                if end_pos == -1:
+                    break
+
+                # Extract inner content of the nested task-list
+                inner_start = nested_start + len("<ac:task-list>")
+                inner_end = end_pos - len("</ac:task-list>")
+                inner_html = html[inner_start:inner_end]
+                items.extend(_parse_task_list(inner_html, indent + 1))
+                pos = end_pos
+            else:
+                # Found a task
+                task_end = html.find("</ac:task>", task_start)
+                if task_end == -1:
+                    break
+                task_end += len("</ac:task>")
+                task_html = html[task_start:task_end]
+
+                status_match = re.search(
+                    r"<ac:task-status>(.*?)</ac:task-status>", task_html
+                )
+                checked = status_match and status_match.group(1).strip().lower() == "complete"
+                checkbox = "[x]" if checked else "[ ]"
+                body_match = re.search(
+                    r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
+                )
+                body = body_match.group(1).strip() if body_match else ""
+                body = re.sub(r"<[^>]+>", "", body).strip()
+                items.append(f"{prefix}- {checkbox} {body}")
+                pos = task_end
+
+        return items
 
     def _convert_task_list(match: re.Match) -> str:
         task_list_html = match.group(0)
-        tasks = re.findall(r"<ac:task>.*?</ac:task>", task_list_html, re.DOTALL)
-        items = []
-        for task_html in tasks:
-            status_match = re.search(
-                r"<ac:task-status>(.*?)</ac:task-status>", task_html
-            )
-            checked = status_match and status_match.group(1).strip().lower() == "complete"
-            checkbox = "[x]" if checked else "[ ]"
-            body_match = re.search(
-                r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
-            )
-            body = body_match.group(1).strip() if body_match else ""
-            body = re.sub(r"<[^>]+>", "", body).strip()
-            items.append(f"- {checkbox} {body}")
+        # Strip the outer <ac:task-list> tags
+        inner = re.sub(r"^<ac:task-list>", "", task_list_html)
+        inner = re.sub(r"</ac:task-list>$", "", inner)
+        items = _parse_task_list(inner, indent=0)
         return "\n".join(items) + "\n"
 
     def _convert_task_list_in_table(match: re.Match) -> str:
         """Convert task lists inside table cells using <br> for line separation."""
         task_list_html = match.group(1)
-        tasks = re.findall(r"<ac:task>.*?</ac:task>", task_list_html, re.DOTALL)
-        items = []
-        for task_html in tasks:
-            status_match = re.search(
-                r"<ac:task-status>(.*?)</ac:task-status>", task_html
-            )
-            checked = status_match and status_match.group(1).strip().lower() == "complete"
-            checkbox = "☑" if checked else "☐"
-            body_match = re.search(
-                r"<ac:task-body>(.*?)</ac:task-body>", task_html, re.DOTALL
-            )
-            body = body_match.group(1).strip() if body_match else ""
-            body = re.sub(r"<[^>]+>", "", body).strip()
-            items.append(f"{checkbox} {body}")
-        return _TABLE_BR_PLACEHOLDER.join(items)
+        inner = re.sub(r"^<ac:task-list>", "", task_list_html)
+        inner = re.sub(r"</ac:task-list>$", "", inner)
+        items = _parse_task_list(inner, indent=0)
+        # Use unicode checkboxes and <br> for tables
+        table_items = []
+        for item in items:
+            # Replace indent placeholders with count for indentation level
+            indent_count = item.count(_INDENT_PLACEHOLDER)
+            item = item.replace(_INDENT_PLACEHOLDER, "")
+            item = re.sub(r"^- \[x\]", "☑", item)
+            item = re.sub(r"^- \[ \]", "☐", item)
+            # Preserve indentation with non-breaking spaces for nested items
+            if indent_count > 0:
+                item = "\u00a0\u00a0" * indent_count + item
+            table_items.append(item)
+        return _TABLE_BR_PLACEHOLDER.join(table_items)
 
     # First: handle task lists inside table cells (<td> or <th>)
-    cleaned = re.sub(
-        r"<t[dh][^>]*>.*?(<ac:task-list>.*?</ac:task-list>).*?</t[dh]>",
-        lambda m: m.group(0).replace(m.group(1), _convert_task_list_in_table(m)),
-        cleaned,
-        flags=re.DOTALL,
-    )
-    # Then: handle remaining task lists (outside tables)
-    cleaned = re.sub(
-        r"<ac:task-list>.*?</ac:task-list>", _convert_task_list, cleaned, flags=re.DOTALL
-    )
+    # Use a greedy match for nested task-lists inside cells
+    def _find_and_replace_table_tasks(html: str) -> str:
+        """Find task lists inside table cells and convert them."""
+        pattern = r"(<t[dh][^>]*>)(.*?)(</t[dh]>)"
+        def _replace_cell(m):
+            cell_open = m.group(1)
+            cell_content = m.group(2)
+            cell_close = m.group(3)
+            if "<ac:task-list>" not in cell_content:
+                return m.group(0)
+            # Find the outermost task-list
+            tl_start = cell_content.find("<ac:task-list>")
+            # Find matching close (handle nesting)
+            depth = 0
+            search_pos = tl_start
+            end_pos = -1
+            while search_pos < len(cell_content):
+                next_open = cell_content.find("<ac:task-list>", search_pos)
+                next_close = cell_content.find("</ac:task-list>", search_pos)
+                if next_close == -1:
+                    break
+                if next_open != -1 and next_open < next_close:
+                    depth += 1
+                    search_pos = next_open + len("<ac:task-list>")
+                else:
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = next_close + len("</ac:task-list>")
+                        break
+                    search_pos = next_close + len("</ac:task-list>")
+            if end_pos == -1:
+                return m.group(0)
+            task_list_html = cell_content[tl_start:end_pos]
+            # Create a fake match object
+            class FakeMatch:
+                def group(self, n):
+                    return task_list_html
+            converted = _convert_task_list_in_table(FakeMatch())
+            new_content = cell_content[:tl_start] + converted + cell_content[end_pos:]
+            return cell_open + new_content + cell_close
+        return re.sub(pattern, _replace_cell, html, flags=re.DOTALL)
+
+    cleaned = _find_and_replace_table_tasks(cleaned)
+
+    # Then: handle remaining task lists (outside tables) — match outermost only
+    def _replace_outermost_task_lists(html: str) -> str:
+        """Find and replace outermost task-list blocks."""
+        result = []
+        pos = 0
+        while pos < len(html):
+            tl_start = html.find("<ac:task-list>", pos)
+            if tl_start == -1:
+                result.append(html[pos:])
+                break
+            result.append(html[pos:tl_start])
+            # Find matching close
+            depth = 0
+            search_pos = tl_start
+            end_pos = -1
+            while search_pos < len(html):
+                next_open = html.find("<ac:task-list>", search_pos)
+                next_close = html.find("</ac:task-list>", search_pos)
+                if next_close == -1:
+                    break
+                if next_open != -1 and next_open < next_close:
+                    depth += 1
+                    search_pos = next_open + len("<ac:task-list>")
+                else:
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = next_close + len("</ac:task-list>")
+                        break
+                    search_pos = next_close + len("</ac:task-list>")
+            if end_pos == -1:
+                result.append(html[tl_start:])
+                break
+            # Create a fake match for _convert_task_list
+            task_list_str = html[tl_start:end_pos]
+            class FakeMatch:
+                def group(self, n):
+                    return task_list_str
+            result.append(_convert_task_list(FakeMatch()))
+            pos = end_pos
+        return "".join(result)
+
+    cleaned = _replace_outermost_task_lists(cleaned)
 
     # Remove remaining Confluence-specific XML tags
     cleaned = re.sub(r"<ac:[^>]*>|</ac:[^>]*>", "", cleaned)
@@ -122,6 +259,9 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     # Restore line breaks in table cells
     markdown_body = markdown_body.replace(_TABLE_BR_PLACEHOLDER, "<br>")
+
+    # Restore indentation for nested task lists
+    markdown_body = markdown_body.replace(_INDENT_PLACEHOLDER, "  ")
 
     # Clean up excessive whitespace
     markdown_body = re.sub(r"\n{3,}", "\n\n", markdown_body)
