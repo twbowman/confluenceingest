@@ -288,9 +288,13 @@ becomes `eng/engineering/infrastructure/deployment-runbook.md` in this repo.
     readme_path.write_text(readme_content.strip() + "\n", encoding="utf-8")
 
 
-def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> dict:
+def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force_all: bool = False) -> dict:
     """
     Sync a single Confluence space into its subdirectory.
+
+    Args:
+        force: Re-convert all pages regardless of version (converter fix scenario)
+        force_all: Re-convert pages AND re-download all attachments
 
     Returns stats dict with created/updated/unchanged/skipped counts.
     """
@@ -311,14 +315,17 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> di
     new_state = {}
     stats = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
 
+    # force or force_all both skip page version checks
+    skip_page_version = force or force_all
+
     for page in pages:
         page_id = page["id"]
         title = page["title"]
         version = page.get("version", {}).get("number", 0)
 
-        # Check if page has changed since last sync (skip if --force)
+        # Check if page has changed since last sync (skip if --force or --force-all)
         prev = previous_state.get(page_id, {})
-        if not force and prev.get("version") == version:
+        if not skip_page_version and prev.get("version") == version:
             stats["unchanged"] += 1
             new_state[page_id] = prev
             continue
@@ -336,7 +343,7 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> di
             page_id, title, space_key,
             previous_attachments=prev_attachments,
             dry_run=dry_run,
-            force=force,
+            force=force_all,
         )
 
         # Rewrite attachment path placeholders in the markdown
@@ -376,7 +383,7 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False) -> di
     return stats
 
 
-def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, force: bool = False):
+def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, force: bool = False, force_all: bool = False):
     """Run the Confluence → Markdown sync for all configured spaces."""
     print("=" * 60)
     print("Confluence → Markdown Sync")
@@ -388,7 +395,9 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
 
     print(f"\nSpaces to sync: {', '.join(space_keys)}")
 
-    if force:
+    if force_all:
+        print("  (FORCE ALL — re-converting all pages and re-downloading all attachments)")
+    elif force:
         print("  (FORCE — ignoring sync state, re-converting all pages)")
 
     # Step 1: Pull (clone) the knowledge base repo from GitLab
@@ -413,7 +422,7 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
         print(f"Syncing space: {space_key}")
         print(f"{'─' * 60}")
 
-        stats = sync_space(space_key, dry_run=dry_run, force=force)
+        stats = sync_space(space_key, dry_run=dry_run, force=force, force_all=force_all)
 
         for key in total_stats:
             total_stats[key] += stats[key]
@@ -470,8 +479,19 @@ def main():
         action="store_true",
         help="Re-convert all pages regardless of sync state (use after converter changes)",
     )
+    parser.add_argument(
+        "--force-all",
+        action="store_true",
+        help="Re-convert all pages AND re-download all attachments (full rebuild)",
+    )
     args = parser.parse_args()
-    sync(dry_run=args.dry_run, push=not args.no_push, keep_local=args.keep_local, force=args.force)
+    sync(
+        dry_run=args.dry_run,
+        push=not args.no_push,
+        keep_local=args.keep_local,
+        force=args.force,
+        force_all=args.force_all,
+    )
 
 
 if __name__ == "__main__":

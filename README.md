@@ -112,6 +112,9 @@ python sync.py --keep-local
 
 # Force re-convert all pages (ignores sync state — use after converter changes)
 python sync.py --force
+
+# Force re-convert all pages AND re-download all attachments (full rebuild)
+python sync.py --force-all
 ```
 
 ## How It Works
