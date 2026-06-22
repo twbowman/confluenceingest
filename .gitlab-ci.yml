@@ -1,4 +1,5 @@
 stages:
+  - test
   - lint
   - security
   - sync
@@ -15,6 +16,22 @@ default:
     - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
+
+# ─────────────────────────────────────────────────────────────
+# Test — runs on every push
+# ─────────────────────────────────────────────────────────────
+
+test:
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+  before_script:
+    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv pip install --system --no-cache -r requirements.txt
+  script:
+    - python3.12 -m pytest test_converter.py -v
 
 # ─────────────────────────────────────────────────────────────
 # Lint & Format — disabled
