@@ -59,6 +59,32 @@ def confluence_html_to_markdown(html_content: str) -> str:
         flags=re.DOTALL,
     )
 
+    # --- Handle user mentions ---
+    # Confluence stores @mentions as <ac:link><ri:user ri:userkey="..." /></ac:link>
+    # Convert to @username or @userkey so mentions survive tag removal AND task body parsing.
+    def _convert_user_mention(match: re.Match) -> str:
+        mention_html = match.group(0)
+        # Try username first (human-readable)
+        username_match = re.search(r'ri:username="([^"]*)"', mention_html)
+        if username_match:
+            return f"@{username_match.group(1)}"
+        # Try account-id (Confluence Cloud)
+        account_match = re.search(r'ri:account-id="([^"]*)"', mention_html)
+        if account_match:
+            return f"@{account_match.group(1)}"
+        # Fall back to userkey (opaque, but preserves the reference)
+        key_match = re.search(r'ri:userkey="([^"]*)"', mention_html)
+        if key_match:
+            return f"@{key_match.group(1)}"
+        return "@unknown"
+
+    cleaned = re.sub(
+        r"<ac:link>\s*<ri:user[^/]*/>\s*</ac:link>",
+        _convert_user_mention,
+        cleaned,
+        flags=re.DOTALL,
+    )
+
     # Task lists (checklists) → GitHub-style Markdown checkboxes
     # Handle differently inside vs outside table cells
     # Use placeholders that survive markdownify
@@ -254,7 +280,6 @@ def confluence_html_to_markdown(html_content: str) -> str:
     # Convert <ac:image> with <ri:attachment> to markdown image references.
     # Images with ri:attachment get rewritten to point to the attachments directory.
     # External images (<ri:url>) are preserved as-is.
-    # Non-image attachments referenced inline are noted with a comment.
     def _convert_image(match: re.Match) -> str:
         image_html = match.group(0)
         # Check for attachment reference

@@ -419,3 +419,63 @@ class TestImageConversion:
         )
         result = confluence_html_to_markdown(html)
         assert "wide-image.png" in result
+
+
+
+# ─────────────────────────────────────────────────────────────
+# 6. User mentions (@mentions)
+# ─────────────────────────────────────────────────────────────
+
+
+class TestUserMentions:
+    """Confluence user mentions should convert to @username format."""
+
+    def test_mention_with_userkey(self):
+        html = '<p>Assigned to <ac:link><ri:user ri:userkey="772abc123" /></ac:link></p>'
+        result = confluence_html_to_markdown(html)
+        assert "@772abc123" in result
+
+    def test_mention_with_username(self):
+        html = '<p>Contact <ac:link><ri:user ri:username="jdoe" /></ac:link></p>'
+        result = confluence_html_to_markdown(html)
+        assert "@jdoe" in result
+
+    def test_mention_with_account_id(self):
+        html = '<p>Owner: <ac:link><ri:user ri:account-id="5d123abc" /></ac:link></p>'
+        result = confluence_html_to_markdown(html)
+        assert "@5d123abc" in result
+
+    def test_mention_username_preferred_over_userkey(self):
+        """Username should be used when available (most human-readable)."""
+        html = '<p><ac:link><ri:user ri:username="jsmith" ri:userkey="abc123" /></ac:link></p>'
+        result = confluence_html_to_markdown(html)
+        assert "@jsmith" in result
+
+    def test_mention_inside_task_body(self):
+        html = (
+            "<ac:task-list>"
+            "<ac:task><ac:task-id>1</ac:task-id>"
+            "<ac:task-status>incomplete</ac:task-status>"
+            '<ac:task-body><span>Review by <ac:link><ri:user ri:userkey="772" /></ac:link></span></ac:task-body>'
+            "</ac:task>"
+            "</ac:task-list>"
+        )
+        result = confluence_html_to_markdown(html)
+        assert "@772" in result
+        assert "- [ ] Review by @772" in result
+
+    def test_mention_not_stripped_from_output(self):
+        html = '<p>Before <ac:link><ri:user ri:userkey="abc" /></ac:link> after</p>'
+        result = confluence_html_to_markdown(html)
+        assert "Before" in result
+        assert "@abc" in result
+        assert "after" in result
+
+    def test_multiple_mentions_in_page(self):
+        html = (
+            '<p><ac:link><ri:user ri:username="alice" /></ac:link> and '
+            '<ac:link><ri:user ri:username="bob" /></ac:link></p>'
+        )
+        result = confluence_html_to_markdown(html)
+        assert "@alice" in result
+        assert "@bob" in result
