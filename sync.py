@@ -383,13 +383,13 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
     return stats
 
 
-def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, force: bool = False, force_all: bool = False):
+def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, force: bool = False, force_all: bool = False, space: str = None):
     """Run the Confluence → Markdown sync for all configured spaces."""
     print("=" * 60)
     print("Confluence → Markdown Sync")
     print("=" * 60)
 
-    space_keys = Config.CONFLUENCE_SPACE_KEYS
+    space_keys = [space.upper()] if space else Config.CONFLUENCE_SPACE_KEYS
     if not space_keys:
         raise ValueError("Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)")
 
@@ -484,6 +484,11 @@ def main():
         action="store_true",
         help="Re-convert all pages AND re-download all attachments (full rebuild)",
     )
+    parser.add_argument(
+        "--space",
+        type=str,
+        help="Sync only this space key (overrides .env list, useful for testing)",
+    )
     args = parser.parse_args()
     sync(
         dry_run=args.dry_run,
@@ -491,6 +496,7 @@ def main():
         keep_local=args.keep_local,
         force=args.force,
         force_all=args.force_all,
+        space=args.space,
     )
 
 
