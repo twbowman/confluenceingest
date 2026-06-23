@@ -100,6 +100,74 @@ def confluence_html_to_markdown(html_content: str) -> str:
         flags=re.DOTALL,
     )
 
+    # Quote macro → blockquote
+    def _convert_quote(match: re.Match) -> str:
+        body_match = re.search(
+            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", match.group(0), re.DOTALL
+        )
+        body = body_match.group(1).strip() if body_match else ""
+        # Strip HTML tags for clean blockquote
+        body = re.sub(r"<[^>]+>", "", body).strip()
+        lines = body.split("\n")
+        return "\n".join(f"> {line}" for line in lines) + "\n"
+
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="quote"[^>]*>.*?</ac:structured-macro>',
+        _convert_quote,
+        cleaned,
+        flags=re.DOTALL,
+    )
+
+    # Anchor macro → placeholder that becomes HTML anchor after markdownify
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="anchor"[^>]*>.*?'
+        r'<ac:parameter ac:name="">([^<]*)</ac:parameter>.*?'
+        r"</ac:structured-macro>",
+        r'KBANCHORxSTARTx\1xENDx',
+        cleaned,
+        flags=re.DOTALL,
+    )
+    # Anchor with named parameter variant
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="anchor"[^>]*>.*?'
+        r'<ac:parameter ac:name="[^"]*">([^<]*)</ac:parameter>.*?'
+        r"</ac:structured-macro>",
+        r'KBANCHORxSTARTx\1xENDx',
+        cleaned,
+        flags=re.DOTALL,
+    )
+
+    # Details/summary (collapsible) → placeholder that becomes <details> after markdownify
+    _DETAILS_START = "KBDETAILSOPEN"
+    _DETAILS_END = "KBDETAILSCLOSE"
+    _SUMMARY_START = "KBSUMMARYOPEN"
+    _SUMMARY_END = "KBSUMMARYCLOSE"
+
+    def _convert_details(match: re.Match) -> str:
+        macro_html = match.group(0)
+        title_match = re.search(
+            r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>', macro_html
+        )
+        body_match = re.search(
+            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL
+        )
+        summary = title_match.group(1) if title_match else "Details"
+        body = body_match.group(1) if body_match else ""
+        return f"{_DETAILS_START}{_SUMMARY_START}{summary}{_SUMMARY_END}\n\n{body}\n\n{_DETAILS_END}\n"
+
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="details"[^>]*>.*?</ac:structured-macro>',
+        _convert_details,
+        cleaned,
+        flags=re.DOTALL,
+    )
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="detail"[^>]*>.*?</ac:structured-macro>',
+        _convert_details,
+        cleaned,
+        flags=re.DOTALL,
+    )
+
     # Fallback: any remaining structured macros — extract their body content
     # rather than losing it entirely. Preserves text from unknown/custom macros.
     def _extract_macro_body(match: re.Match) -> str:
@@ -450,6 +518,19 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     # Restore indentation for nested task lists
     markdown_body = markdown_body.replace(_INDENT_PLACEHOLDER, "  ")
+
+    # Restore HTML anchors
+    markdown_body = re.sub(
+        r"KBANCHORxSTARTx([^x]+)xENDx",
+        r'<a id="\1"></a>',
+        markdown_body,
+    )
+
+    # Restore <details> blocks
+    markdown_body = markdown_body.replace("KBDETAILSOPEN", "<details>\n")
+    markdown_body = markdown_body.replace("KBDETAILSCLOSE", "</details>")
+    markdown_body = markdown_body.replace("KBSUMMARYOPEN", "<summary>")
+    markdown_body = markdown_body.replace("KBSUMMARYCLOSE", "</summary>")
 
     # Clean up excessive whitespace
     markdown_body = re.sub(r"\n{3,}", "\n\n", markdown_body)
