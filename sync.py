@@ -34,13 +34,14 @@ from converter import convert_page
 from git_publisher import pull_kb_repo, push_kb_repo, cleanup_kb_repo, get_space_dir, get_clone_dir
 
 
-def build_file_path(page: dict, space_dir: str) -> Path:
+def build_file_path(page: dict, space_dir: str, parent_ids: set) -> Path:
     """
     Build the output file path preserving page hierarchy as directories.
 
-    Each page becomes a directory with an index.md file inside it.
-    Example: Engineering > Infrastructure > Deployment →
-             knowledge-base/eng/engineering/infrastructure/deployment/index.md
+    - Parent pages (those with children) → <page-title>/index.md
+    - Leaf pages (no children) → <page-title>.md
+
+    This is compatible with MkDocs, Docusaurus, and similar doc tools.
     """
     ancestors = [ancestor["title"] for ancestor in page.get("ancestors", [])]
     title = page["title"]
@@ -59,10 +60,17 @@ def build_file_path(page: dict, space_dir: str) -> Path:
     if not safe_segments:
         safe_segments = [page["id"]]
 
-    # Page content lives as index.md inside its own directory
-    dir_path = Path(space_dir).joinpath(*safe_segments)
+    is_parent = page["id"] in parent_ids
 
-    return dir_path / "index.md"
+    if is_parent:
+        # Parent page → directory with index.md
+        dir_path = Path(space_dir).joinpath(*safe_segments)
+        return dir_path / "index.md"
+    else:
+        # Leaf page → named .md file in parent directory
+        filename = safe_segments.pop() + ".md"
+        dir_path = Path(space_dir).joinpath(*safe_segments) if safe_segments else Path(space_dir)
+        return dir_path / filename
 
 
 def get_attachments_dir(space_key: str) -> Path:
@@ -223,9 +231,13 @@ knowledge-base/
 │   │   └── <page_id>/                 ← Attachments grouped by page ID
 │   │       ├── screenshot.png
 │   │       └── document.pdf
-│   └── <page-hierarchy>/              ← Mirrors Confluence page tree
-│       └── <page-title>/
-│           └── index.md               ← Page content
+│   ├── <parent-page>/                 ← Pages with children become directories
+│   │   ├── index.md                   ← Parent page content
+│   │   ├── child-page.md             ← Leaf child pages (named files)
+│   │   └── another-child/            ← Child that also has children
+│   │       ├── index.md
+│   │       └── grandchild-page.md
+│   └── leaf-page.md                   ← Top-level leaf pages (no children)
 └── ...
 ```
 
@@ -261,8 +273,9 @@ The directory hierarchy mirrors the Confluence page tree:
 - Top-level pages become direct children of the space directory
 - Child pages nest in subdirectories named after their parent
 
-Example: A page at **Engineering > Infrastructure > Deployment Runbook** in Confluence
-becomes `eng/engineering/infrastructure/deployment-runbook/index.md` in this repo.
+Example: A page at **Engineering > Infrastructure > Deployment Runbook** in Confluence:
+- If "Deployment Runbook" has children → `eng/engineering/infrastructure/deployment-runbook/index.md`
+- If "Deployment Runbook" is a leaf page → `eng/engineering/infrastructure/deployment-runbook.md`
 
 ## Sync Behavior
 
@@ -329,6 +342,13 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
     if not pages:
         return {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
 
+    # Determine which pages are parents (have children)
+    # A page is a parent if any other page lists it in its ancestors
+    parent_ids = set()
+    for page in pages:
+        for ancestor in page.get("ancestors", []):
+            parent_ids.add(ancestor["id"])
+
     new_state = {}
     stats = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
 
@@ -380,7 +400,7 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
                 content = content.replace("KBATTACHMENTLIST", "")
 
         # Determine output path within the space directory
-        file_path = build_file_path(page, space_dir)
+        file_path = build_file_path(page, space_dir, parent_ids)
 
         # Detect create vs update
         action = "UPDATE" if file_path.exists() else "CREATE"
