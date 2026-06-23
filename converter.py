@@ -59,6 +59,74 @@ def confluence_html_to_markdown(html_content: str) -> str:
         flags=re.DOTALL,
     )
 
+    # Status macro → inline badge text
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="status"[^>]*>.*?'
+        r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>.*?'
+        r"</ac:structured-macro>",
+        r"**[\1]**",
+        cleaned,
+        flags=re.DOTALL,
+    )
+
+    # Noformat / preformatted text → fenced code blocks (no language)
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="noformat"[^>]*>.*?'
+        r"<ac:plain-text-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-body>.*?"
+        r"</ac:structured-macro>",
+        r"```\n\1\n```",
+        cleaned,
+        flags=re.DOTALL,
+    )
+
+    # Panel macro → blockquote (may have a title parameter)
+    def _convert_panel(match: re.Match) -> str:
+        panel_html = match.group(0)
+        title_match = re.search(
+            r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>', panel_html
+        )
+        body_match = re.search(
+            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", panel_html, re.DOTALL
+        )
+        body = body_match.group(1) if body_match else ""
+        if title_match:
+            return f"> **{title_match.group(1)}**\n>\n> {body}\n"
+        return f"> {body}\n"
+
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="panel"[^>]*>.*?</ac:structured-macro>',
+        _convert_panel,
+        cleaned,
+        flags=re.DOTALL,
+    )
+
+    # Fallback: any remaining structured macros — extract their body content
+    # rather than losing it entirely. Preserves text from unknown/custom macros.
+    def _extract_macro_body(match: re.Match) -> str:
+        macro_html = match.group(0)
+        # Try rich-text-body first (contains HTML content)
+        body_match = re.search(
+            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL
+        )
+        if body_match:
+            return body_match.group(1)
+        # Try plain-text-body (contains raw text in CDATA)
+        plain_match = re.search(
+            r"<ac:plain-text-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-body>",
+            macro_html, re.DOTALL,
+        )
+        if plain_match:
+            return f"```\n{plain_match.group(1)}\n```"
+        # No body — macro is decorative/empty (e.g., children, toc remnants)
+        return ""
+
+    cleaned = re.sub(
+        r"<ac:structured-macro[^>]*>.*?</ac:structured-macro>",
+        _extract_macro_body,
+        cleaned,
+        flags=re.DOTALL,
+    )
+
     # --- Handle user mentions ---
     # Confluence stores @mentions as <ac:link><ri:user ri:userkey="..." /></ac:link>
     # Convert to @username or @userkey so mentions survive tag removal AND task body parsing.
