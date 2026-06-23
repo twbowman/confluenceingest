@@ -38,8 +38,9 @@ def build_file_path(page: dict, space_dir: str) -> Path:
     """
     Build the output file path preserving page hierarchy as directories.
 
+    Each page becomes a directory with an index.md file inside it.
     Example: Engineering > Infrastructure > Deployment →
-             knowledge-base/eng/engineering/infrastructure/deployment.md
+             knowledge-base/eng/engineering/infrastructure/deployment/index.md
     """
     ancestors = [ancestor["title"] for ancestor in page.get("ancestors", [])]
     title = page["title"]
@@ -58,11 +59,10 @@ def build_file_path(page: dict, space_dir: str) -> Path:
     if not safe_segments:
         safe_segments = [page["id"]]
 
-    # Final segment is the filename
-    filename = safe_segments.pop() + ".md"
-    dir_path = Path(space_dir).joinpath(*safe_segments) if safe_segments else Path(space_dir)
+    # Page content lives as index.md inside its own directory
+    dir_path = Path(space_dir).joinpath(*safe_segments)
 
-    return dir_path / filename
+    return dir_path / "index.md"
 
 
 def get_attachments_dir(space_key: str) -> Path:
@@ -224,7 +224,8 @@ knowledge-base/
 │   │       ├── screenshot.png
 │   │       └── document.pdf
 │   └── <page-hierarchy>/              ← Mirrors Confluence page tree
-│       └── page-title.md
+│       └── <page-title>/
+│           └── index.md               ← Page content
 └── ...
 ```
 
@@ -261,7 +262,7 @@ The directory hierarchy mirrors the Confluence page tree:
 - Child pages nest in subdirectories named after their parent
 
 Example: A page at **Engineering > Infrastructure > Deployment Runbook** in Confluence
-becomes `eng/engineering/infrastructure/deployment-runbook.md` in this repo.
+becomes `eng/engineering/infrastructure/deployment-runbook/index.md` in this repo.
 
 ## Sync Behavior
 
