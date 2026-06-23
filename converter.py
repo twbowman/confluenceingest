@@ -44,16 +44,20 @@ def confluence_html_to_markdown(html_content: str) -> str:
         flags=re.DOTALL,
     )
 
-    # Table of contents macro → remove (Markdown renderers handle this differently)
+    # Table of contents macro → remove the macro itself
+    # The toc macro never has real body content. However, some Confluence pages
+    # have page content interleaved between malformed toc open/close tags.
+    # Strategy: remove self-closing or truly empty toc macros, then strip just
+    # the toc tags (preserving any content between them).
     cleaned = re.sub(
-        r'<ac:structured-macro[^>]*ac:name="toc"[^>]*>.*?</ac:structured-macro>',
+        r'<ac:structured-macro[^>]*ac:name="toc"[^>]*/\s*>',
         "",
         cleaned,
         flags=re.DOTALL,
     )
-    # Self-closing toc
+    # Remove opening toc tag (preserves content after it)
     cleaned = re.sub(
-        r'<ac:structured-macro[^>]*ac:name="toc"[^>]*/?>',
+        r'<ac:structured-macro[^>]*ac:name="toc"[^>]*>',
         "",
         cleaned,
         flags=re.DOTALL,
