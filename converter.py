@@ -63,6 +63,21 @@ def confluence_html_to_markdown(html_content: str) -> str:
         flags=re.DOTALL,
     )
 
+    # Attachments macro → placeholder (replaced with actual file list by sync.py)
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="attachments"[^>]*>.*?</ac:structured-macro>',
+        "KBATTACHMENTLIST",
+        cleaned,
+        flags=re.DOTALL,
+    )
+    # Self-closing variant
+    cleaned = re.sub(
+        r'<ac:structured-macro[^>]*ac:name="attachments"[^>]*/\s*>',
+        "KBATTACHMENTLIST",
+        cleaned,
+        flags=re.DOTALL,
+    )
+
     # Status macro → inline badge text
     cleaned = re.sub(
         r'<ac:structured-macro[^>]*ac:name="status"[^>]*>.*?'

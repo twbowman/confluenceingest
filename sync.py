@@ -351,6 +351,17 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
         attachments_rel_path = f"/{space_key.lower()}/{Config.ATTACHMENTS_DIR}/{page_id}"
         content = content.replace("%%ATTACHMENT_PATH%%", attachments_rel_path)
 
+        # Replace attachment list macro placeholder with actual file listing
+        if "KBATTACHMENTLIST" in content:
+            all_attachments = list(new_attachment_state.keys())
+            if all_attachments:
+                att_lines = ["\n**Attachments:**\n"]
+                for filename in sorted(all_attachments):
+                    att_lines.append(f"- [{filename}]({attachments_rel_path}/{filename})")
+                content = content.replace("KBATTACHMENTLIST", "\n".join(att_lines) + "\n")
+            else:
+                content = content.replace("KBATTACHMENTLIST", "")
+
         # Determine output path within the space directory
         file_path = build_file_path(page, space_dir)
 
