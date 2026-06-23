@@ -172,6 +172,9 @@ def confluence_html_to_markdown(html_content: str) -> str:
     # rather than losing it entirely. Preserves text from unknown/custom macros.
     def _extract_macro_body(match: re.Match) -> str:
         macro_html = match.group(0)
+        # Identify the macro name for reference
+        name_match = re.search(r'ac:name="([^"]*)"', macro_html)
+        macro_name = name_match.group(1) if name_match else "unknown"
         # Try rich-text-body first (contains HTML content)
         body_match = re.search(
             r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL
@@ -185,8 +188,9 @@ def confluence_html_to_markdown(html_content: str) -> str:
         )
         if plain_match:
             return f"```\n{plain_match.group(1)}\n```"
-        # No body — macro is decorative/empty (e.g., children, toc remnants)
-        return ""
+        # No body — macro is dynamic or has no static content
+        # Leave a visible marker so it's clear content was omitted
+        return f"KBMACRODROPxSTARTx{macro_name}xENDx"
 
     cleaned = re.sub(
         r"<ac:structured-macro[^>]*>.*?</ac:structured-macro>",
@@ -531,6 +535,13 @@ def confluence_html_to_markdown(html_content: str) -> str:
     markdown_body = markdown_body.replace("KBDETAILSCLOSE", "</details>")
     markdown_body = markdown_body.replace("KBSUMMARYOPEN", "<summary>")
     markdown_body = markdown_body.replace("KBSUMMARYCLOSE", "</summary>")
+
+    # Restore dropped macro markers
+    markdown_body = re.sub(
+        r"KBMACRODROPxSTARTx([^x]+)xENDx",
+        r"<!-- Confluence macro: \1 (no static content) -->",
+        markdown_body,
+    )
 
     # Clean up excessive whitespace
     markdown_body = re.sub(r"\n{3,}", "\n\n", markdown_body)
