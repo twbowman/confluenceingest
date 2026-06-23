@@ -270,6 +270,22 @@ becomes `eng/engineering/infrastructure/deployment-runbook.md` in this repo.
 - **Force sync:** Running with `--force` re-exports all pages regardless of version state
 - **State tracking:** Each space has a `.sync-state.json` that tracks page and attachment versions
 
+## Conversion Notes
+
+Some Confluence macros have no static Markdown equivalent (e.g., `jira`, `children`, `include`,
+`recently-updated`). When a macro cannot be converted, an HTML comment is left in the raw Markdown:
+
+```html
+<!-- Confluence macro: children (no static content) -->
+```
+
+These comments are invisible in rendered Markdown but visible in the raw `.md` files. You can
+search for them to identify pages with incomplete conversions:
+
+```bash
+grep -r "Confluence macro:" <space_key>/
+```
+
 ## Consuming This Data
 
 | Use Case | Approach |
