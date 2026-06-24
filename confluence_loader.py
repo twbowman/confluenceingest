@@ -52,8 +52,7 @@ def fetch_pages_by_ids(page_ids: list[str]) -> list[dict]:
     pages = []
     for page_id in page_ids:
         url = (
-            f"{Config.CONFLUENCE_URL}/rest/api/content/{page_id}"
-            f"?expand=body.storage,metadata.labels,ancestors,version"
+            f"{Config.CONFLUENCE_URL}/rest/api/content/{page_id}?expand=body.storage,metadata.labels,ancestors,version"
         )
         response = requests.get(
             url,
@@ -91,10 +90,7 @@ def fetch_attachments(page_id: str) -> list[dict]:
     limit = 50
 
     while True:
-        url = (
-            f"{Config.CONFLUENCE_URL}/rest/api/content/{page_id}/child/attachment"
-            f"?start={start}&limit={limit}"
-        )
+        url = f"{Config.CONFLUENCE_URL}/rest/api/content/{page_id}/child/attachment?start={start}&limit={limit}"
         response = requests.get(
             url,
             headers=_get_headers(),

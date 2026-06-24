@@ -51,17 +51,6 @@ lint:
 # Security — disabled
 # ─────────────────────────────────────────────────────────────
 
-bandit:
-  stage: security
-  rules:
-    - when: never
-    - if: $CI_PIPELINE_SOURCE == "push"
-  before_script:
-    - dnf install -y python3.12 python3.12-pip && dnf clean all
-    - pip3.12 install --no-cache-dir bandit
-  script:
-    - bandit -r . -x ./venv,./.venv -ll
-
 safety:
   stage: security
   rules:

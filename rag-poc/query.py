@@ -109,9 +109,7 @@ def ask(question: str, n_results: int = 5, verbose: bool = False) -> str:
         print(f"\n  Retrieved {len(chunks)} chunks:")
         for i, chunk in enumerate(chunks, 1):
             meta = chunk["metadata"]
-            print(
-                f"    {i}. {meta.get('title', '?')} (distance: {chunk['distance']:.4f})"
-            )
+            print(f"    {i}. {meta.get('title', '?')} (distance: {chunk['distance']:.4f})")
         print()
 
     # Generate answer

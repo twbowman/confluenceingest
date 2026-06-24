@@ -20,15 +20,11 @@ def _git_env() -> dict:
     """Build environment variables for git commands, including SSH key if configured."""
     env = os.environ.copy()
     if Config.KB_GIT_SSH_KEY:
-        env["GIT_SSH_COMMAND"] = (
-            f"ssh -i {Config.KB_GIT_SSH_KEY} -o StrictHostKeyChecking=accept-new"
-        )
+        env["GIT_SSH_COMMAND"] = f"ssh -i {Config.KB_GIT_SSH_KEY} -o StrictHostKeyChecking=accept-new"
     return env
 
 
-def _run_git(
-    args: list[str], cwd: str, timeout: int = 120
-) -> subprocess.CompletedProcess:
+def _run_git(args: list[str], cwd: str, timeout: int = 120) -> subprocess.CompletedProcess:
     """Run a git command in the specified directory."""
     result = subprocess.run(
         ["git"] + args,
@@ -114,9 +110,7 @@ def pull_kb_repo() -> Path:
             # Truly empty repo — init fresh
             clone_dir.mkdir(parents=True, exist_ok=True)
             _run_git(["init"], str(clone_dir))
-            _run_git(
-                ["remote", "add", "origin", Config.KB_GIT_REPO_URL], str(clone_dir)
-            )
+            _run_git(["remote", "add", "origin", Config.KB_GIT_REPO_URL], str(clone_dir))
             _run_git(["checkout", "-b", Config.KB_GIT_BRANCH], str(clone_dir))
             print("  Initialized new repo (remote appears empty)")
 
@@ -152,11 +146,7 @@ def push_kb_repo(stats: dict) -> bool:
         return False
 
     # Commit
-    commit_message = (
-        f"Sync from Confluence: "
-        f"+{stats.get('created', 0)} created, "
-        f"~{stats.get('updated', 0)} updated"
-    )
+    commit_message = f"Sync from Confluence: +{stats.get('created', 0)} created, ~{stats.get('updated', 0)} updated"
     _run_git(["commit", "-m", commit_message], str(clone_dir))
     print(f"  Committed: {commit_message}")
 
@@ -178,20 +168,11 @@ def push_kb_repo(stats: dict) -> bool:
             break
         except (RuntimeError, subprocess.TimeoutExpired) as e:
             error_msg = str(e)
-            is_timeout = (
-                isinstance(e, subprocess.TimeoutExpired)
-                or "timeout" in error_msg.lower()
-            )
-            is_size_issue = any(
-                word in error_msg.lower()
-                for word in ["large", "size", "exceeded", "pack"]
-            )
+            is_timeout = isinstance(e, subprocess.TimeoutExpired) or "timeout" in error_msg.lower()
+            is_size_issue = any(word in error_msg.lower() for word in ["large", "size", "exceeded", "pack"])
 
             if attempt < max_retries and is_timeout:
-                print(
-                    f"  Push attempt {attempt}/{max_retries} timed out — retrying "
-                    f"(timeout: {push_timeout}s)..."
-                )
+                print(f"  Push attempt {attempt}/{max_retries} timed out — retrying (timeout: {push_timeout}s)...")
                 push_timeout += 300  # Add 5 more minutes each retry
                 continue
             elif is_size_issue:

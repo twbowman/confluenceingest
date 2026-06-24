@@ -75,11 +75,7 @@ def build_file_path(page: dict, space_dir: str, parent_ids: set) -> Path:
     else:
         # Leaf page → named .md file in parent directory
         filename = safe_segments.pop() + ".md"
-        dir_path = (
-            Path(space_dir).joinpath(*safe_segments)
-            if safe_segments
-            else Path(space_dir)
-        )
+        dir_path = Path(space_dir).joinpath(*safe_segments) if safe_segments else Path(space_dir)
         return dir_path / filename
 
 
@@ -182,9 +178,7 @@ def download_page_attachments(
             "version": att_version,
             "size": len(content),
         }
-        print(
-            f"      ATTACHMENT: {filename} v{att_version} ({len(content) / 1024:.0f} KB)"
-        )
+        print(f"      ATTACHMENT: {filename} v{att_version} ({len(content) / 1024:.0f} KB)")
 
     return downloaded, new_attachment_state
 
@@ -212,8 +206,7 @@ def generate_kb_readme(space_keys: list[str], stats: dict):
     last_sync = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     spaces_table = "\n".join(
-        f"| `{key.lower()}/` | {key} | [{key}]({confluence_url}/display/{key}) |"
-        for key in space_keys
+        f"| `{key.lower()}/` | {key} | [{key}]({confluence_url}/display/{key}) |" for key in space_keys
     )
 
     readme_content = f"""# Knowledge Base
@@ -327,9 +320,7 @@ grep -r "Confluence macro:" <space_key>/
     readme_path.write_text(readme_content.strip() + "\n", encoding="utf-8")
 
 
-def sync_space(
-    space_key: str, dry_run: bool = False, force: bool = False, force_all: bool = False
-) -> dict:
+def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force_all: bool = False) -> dict:
     """
     Sync a single Confluence space into its subdirectory.
 
@@ -398,9 +389,7 @@ def sync_space(
 
         # Rewrite attachment path placeholders in the markdown
         # Path is relative to the KB repo root: /<space_key>/attachments/<page_id>
-        attachments_rel_path = (
-            f"/{space_key.lower()}/{Config.ATTACHMENTS_DIR}/{page_id}"
-        )
+        attachments_rel_path = f"/{space_key.lower()}/{Config.ATTACHMENTS_DIR}/{page_id}"
         content = content.replace("%%ATTACHMENT_PATH%%", attachments_rel_path)
 
         # Replace attachment list macro placeholder with actual file listing
@@ -409,12 +398,8 @@ def sync_space(
             if all_attachments:
                 att_lines = ["\n**Attachments:**\n"]
                 for filename in sorted(all_attachments):
-                    att_lines.append(
-                        f"- [{filename}]({attachments_rel_path}/{filename})"
-                    )
-                content = content.replace(
-                    "KBATTACHMENTLIST", "\n".join(att_lines) + "\n"
-                )
+                    att_lines.append(f"- [{filename}]({attachments_rel_path}/{filename})")
+                content = content.replace("KBATTACHMENTLIST", "\n".join(att_lines) + "\n")
             else:
                 content = content.replace("KBATTACHMENTLIST", "")
 
@@ -465,16 +450,12 @@ def sync(
 
     space_keys = [space.upper()] if space else Config.CONFLUENCE_SPACE_KEYS
     if not space_keys:
-        raise ValueError(
-            "Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)"
-        )
+        raise ValueError("Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)")
 
     print(f"\nSpaces to sync: {', '.join(space_keys)}")
 
     if force_all:
-        print(
-            "  (FORCE ALL — re-converting all pages and re-downloading all attachments)"
-        )
+        print("  (FORCE ALL — re-converting all pages and re-downloading all attachments)")
     elif force:
         print("  (FORCE — ignoring sync state, re-converting all pages)")
 
@@ -526,11 +507,7 @@ def sync(
         generate_kb_readme(space_keys, total_stats)
 
     # Step 4: Commit and push to GitLab (single commit for all spaces)
-    if (
-        not dry_run
-        and push
-        and (total_stats["created"] > 0 or total_stats["updated"] > 0)
-    ):
+    if not dry_run and push and (total_stats["created"] > 0 or total_stats["updated"] > 0):
         push_kb_repo(total_stats)
     elif not push:
         print("\n  Git push skipped (--no-push)")

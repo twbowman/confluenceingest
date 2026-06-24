@@ -23,9 +23,7 @@ def _git_env() -> dict:
     env = os.environ.copy()
     if Config.KB_GIT_SSH_KEY:
         ssh_key_path = os.path.expanduser(Config.KB_GIT_SSH_KEY)
-        env["GIT_SSH_COMMAND"] = (
-            f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=accept-new"
-        )
+        env["GIT_SSH_COMMAND"] = f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=accept-new"
     return env
 
 
@@ -102,9 +100,7 @@ def pull_knowledge_base(fresh: bool = False) -> Path:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Pull the knowledge base repo from GitLab"
-    )
+    parser = argparse.ArgumentParser(description="Pull the knowledge base repo from GitLab")
     parser.add_argument(
         "--fresh",
         action="store_true",

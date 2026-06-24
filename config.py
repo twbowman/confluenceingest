@@ -14,14 +14,10 @@ class Config:
     CONFLUENCE_PAT: str = os.getenv("CONFLUENCE_PAT", "")
     CONFLUENCE_SPACE_KEY: str = os.getenv("CONFLUENCE_SPACE_KEY", "")
     CONFLUENCE_SPACE_KEYS: list[str] = [
-        key.strip()
-        for key in os.getenv("CONFLUENCE_SPACE_KEY", "").split(",")
-        if key.strip()
+        key.strip() for key in os.getenv("CONFLUENCE_SPACE_KEY", "").split(",") if key.strip()
     ]
     CONFLUENCE_PAGE_IDS: list[str] = [
-        pid.strip()
-        for pid in os.getenv("CONFLUENCE_PAGE_IDS", "").split(",")
-        if pid.strip()
+        pid.strip() for pid in os.getenv("CONFLUENCE_PAGE_IDS", "").split(",") if pid.strip()
     ]
 
     # Output — base directory; each space gets a subdirectory under this
@@ -37,6 +33,4 @@ class Config:
     KB_GIT_BRANCH: str = os.getenv("KB_GIT_BRANCH", "master")
     KB_GIT_SSH_KEY: str = os.getenv("KB_GIT_SSH_KEY", "")
     KB_GIT_AUTHOR_NAME: str = os.getenv("KB_GIT_AUTHOR_NAME", "confluence-sync")
-    KB_GIT_AUTHOR_EMAIL: str = os.getenv(
-        "KB_GIT_AUTHOR_EMAIL", "confluence-sync@mycompany.com"
-    )
+    KB_GIT_AUTHOR_EMAIL: str = os.getenv("KB_GIT_AUTHOR_EMAIL", "confluence-sync@mycompany.com")

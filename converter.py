@@ -101,12 +101,8 @@ def confluence_html_to_markdown(html_content: str) -> str:
     # Panel macro → blockquote (may have a title parameter)
     def _convert_panel(match: re.Match) -> str:
         panel_html = match.group(0)
-        title_match = re.search(
-            r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>', panel_html
-        )
-        body_match = re.search(
-            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", panel_html, re.DOTALL
-        )
+        title_match = re.search(r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>', panel_html)
+        body_match = re.search(r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", panel_html, re.DOTALL)
         body = body_match.group(1) if body_match else ""
         if title_match:
             return f"> **{title_match.group(1)}**\n>\n> {body}\n"
@@ -121,9 +117,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     # Quote macro → blockquote
     def _convert_quote(match: re.Match) -> str:
-        body_match = re.search(
-            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", match.group(0), re.DOTALL
-        )
+        body_match = re.search(r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", match.group(0), re.DOTALL)
         body = body_match.group(1).strip() if body_match else ""
         # Strip HTML tags for clean blockquote
         body = re.sub(r"<[^>]+>", "", body).strip()
@@ -164,12 +158,8 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
     def _convert_details(match: re.Match) -> str:
         macro_html = match.group(0)
-        title_match = re.search(
-            r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>', macro_html
-        )
-        body_match = re.search(
-            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL
-        )
+        title_match = re.search(r'<ac:parameter ac:name="title">([^<]*)</ac:parameter>', macro_html)
+        body_match = re.search(r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL)
         summary = title_match.group(1) if title_match else "Details"
         body = body_match.group(1) if body_match else ""
         return f"{_DETAILS_START}{_SUMMARY_START}{summary}{_SUMMARY_END}\n\n{body}\n\n{_DETAILS_END}\n"
@@ -195,9 +185,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
         name_match = re.search(r'ac:name="([^"]*)"', macro_html)
         macro_name = name_match.group(1) if name_match else "unknown"
         # Try rich-text-body first (contains HTML content)
-        body_match = re.search(
-            r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL
-        )
+        body_match = re.search(r"<ac:rich-text-body>(.*?)</ac:rich-text-body>", macro_html, re.DOTALL)
         if body_match:
             return body_match.group(1)
         # Try plain-text-body (contains raw text in CDATA)
@@ -347,36 +335,25 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
                 # First try: find status before the body/nested content
                 status_region = task_html[:search_boundary]
-                status_match = re.search(
-                    r"<ac:task-status>(.*?)</ac:task-status>", status_region
-                )
+                status_match = re.search(r"<ac:task-status>(.*?)</ac:task-status>", status_region)
                 if not status_match:
                     # Fallback: status might be after the body (some Confluence versions)
                     # Look after the last </ac:task-body> at the top level
                     body_end_pos = task_html.rfind("</ac:task-body>")
                     if body_end_pos != -1:
                         after_body = task_html[body_end_pos:]
-                        status_match = re.search(
-                            r"<ac:task-status>(.*?)</ac:task-status>", after_body
-                        )
+                        status_match = re.search(r"<ac:task-status>(.*?)</ac:task-status>", after_body)
 
                 # Confluence uses "complete" or "DONE" for checked; "incomplete" for unchecked
-                checked = (
-                    status_match
-                    and status_match.group(1).strip().lower() != "incomplete"
-                )
+                checked = status_match and status_match.group(1).strip().lower() != "incomplete"
                 checkbox = "[x]" if checked else "[ ]"
 
                 # Extract body — use greedy match to get the full body including nested content
-                body_match = re.search(
-                    r"<ac:task-body>(.*)</ac:task-body>", task_html, re.DOTALL
-                )
+                body_match = re.search(r"<ac:task-body>(.*)</ac:task-body>", task_html, re.DOTALL)
                 body_html = body_match.group(1).strip() if body_match else ""
 
                 # Check if the body contains a nested task-list
-                nested_in_body = re.search(
-                    r"(<ac:task-list>.*</ac:task-list>)", body_html, re.DOTALL
-                )
+                nested_in_body = re.search(r"(<ac:task-list>.*</ac:task-list>)", body_html, re.DOTALL)
                 if nested_in_body:
                     # Extract text before the nested list as this task's body
                     text_before = body_html[: nested_in_body.start()]
@@ -585,10 +562,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
 
 def build_frontmatter(page: dict, space_key: str) -> dict:
     """Extract structured metadata from a Confluence page into frontmatter fields."""
-    labels = [
-        label["name"]
-        for label in page.get("metadata", {}).get("labels", {}).get("results", [])
-    ]
+    labels = [label["name"] for label in page.get("metadata", {}).get("labels", {}).get("results", [])]
 
     ancestors = [ancestor["title"] for ancestor in page.get("ancestors", [])]
 
@@ -640,6 +614,7 @@ def convert_page(page: dict, space_key: str) -> str:
 
     # Add the page title as H1
     title = page["title"]
-    document = f"---\n{yaml.dump(frontmatter, default_flow_style=False, sort_keys=False).strip()}\n---\n\n# {title}\n\n{markdown_body}\n"
+    yaml_block = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False).strip()
+    document = f"---\n{yaml_block}\n---\n\n# {title}\n\n{markdown_body}\n"
 
     return document

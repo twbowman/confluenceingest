@@ -1,0 +1,9 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "S"]
+
+[lint.per-file-ignores]
+"test_*.py" = ["S"]
+"git_publisher.py" = ["S603", "S607"]
+"rag-poc/kb_pull.py" = ["S603", "S607"]

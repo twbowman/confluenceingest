@@ -327,11 +327,7 @@ class TestExistingConversions:
         assert result.strip().startswith(">")
 
     def test_toc_macro_removed(self):
-        html = (
-            '<ac:structured-macro ac:name="toc" ac:schema-version="1">'
-            "</ac:structured-macro>"
-            "<h1>Title</h1>"
-        )
+        html = '<ac:structured-macro ac:name="toc" ac:schema-version="1"></ac:structured-macro><h1>Title</h1>'
         result = confluence_html_to_markdown(html)
         assert "toc" not in result.lower()
         assert "Title" in result
@@ -351,9 +347,7 @@ class TestExistingConversions:
         assert "## Section Title" in result
 
     def test_tables_convert_to_markdown(self):
-        html = (
-            "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
-        )
+        html = "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
         result = confluence_html_to_markdown(html)
         assert "| A | B |" in result
         assert "| 1 | 2 |" in result
@@ -380,13 +374,7 @@ class TestImageConversion:
 
     def test_image_not_stripped_from_output(self):
         """Images should no longer be stripped — they should appear in output."""
-        html = (
-            "<p>Before</p>"
-            "<ac:image>"
-            '<ri:attachment ri:filename="diagram.png" />'
-            "</ac:image>"
-            "<p>After</p>"
-        )
+        html = '<p>Before</p><ac:image><ri:attachment ri:filename="diagram.png" /></ac:image><p>After</p>'
         result = confluence_html_to_markdown(html)
         assert "diagram.png" in result
         assert "Before" in result
@@ -402,11 +390,7 @@ class TestImageConversion:
         assert "second.jpg" in result
 
     def test_image_with_attributes(self):
-        html = (
-            '<ac:image ac:width="500" ac:height="300">'
-            '<ri:attachment ri:filename="wide-image.png" />'
-            "</ac:image>"
-        )
+        html = '<ac:image ac:width="500" ac:height="300"><ri:attachment ri:filename="wide-image.png" /></ac:image>'
         result = confluence_html_to_markdown(html)
         assert "wide-image.png" in result
 
@@ -420,9 +404,7 @@ class TestUserMentions:
     """Confluence user mentions should convert to @username format."""
 
     def test_mention_with_userkey(self):
-        html = (
-            '<p>Assigned to <ac:link><ri:user ri:userkey="772abc123" /></ac:link></p>'
-        )
+        html = '<p>Assigned to <ac:link><ri:user ri:userkey="772abc123" /></ac:link></p>'
         result = confluence_html_to_markdown(html)
         assert "@772abc123" in result
 
