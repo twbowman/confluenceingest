@@ -51,11 +51,16 @@ def split_by_headings(body: str, max_chunk_tokens: int = 512) -> list[str]:
             current_chunk = ""
 
             for para in paragraphs:
-                if len((current_chunk + "\n\n" + para)) // 4 > max_chunk_tokens and current_chunk:
+                if (
+                    len((current_chunk + "\n\n" + para)) // 4 > max_chunk_tokens
+                    and current_chunk
+                ):
                     chunks.append(current_chunk.strip())
                     current_chunk = para
                 else:
-                    current_chunk = current_chunk + "\n\n" + para if current_chunk else para
+                    current_chunk = (
+                        current_chunk + "\n\n" + para if current_chunk else para
+                    )
 
             if current_chunk.strip():
                 chunks.append(current_chunk.strip())
@@ -98,10 +103,12 @@ def chunk_document(file_path: Path) -> list[dict]:
         # Prepend title for context in embedding
         text_for_embedding = f"# {title}\n\n{section_text}"
 
-        chunks.append({
-            "text": text_for_embedding,
-            "metadata": chunk_metadata,
-        })
+        chunks.append(
+            {
+                "text": text_for_embedding,
+                "metadata": chunk_metadata,
+            }
+        )
 
     return chunks
 

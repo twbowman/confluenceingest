@@ -51,11 +51,13 @@ def retrieve(question: str, n_results: int = 5) -> list[dict]:
     # Format results
     chunks = []
     for i in range(len(results["ids"][0])):
-        chunks.append({
-            "text": results["documents"][0][i],
-            "metadata": results["metadatas"][0][i],
-            "distance": results["distances"][0][i],
-        })
+        chunks.append(
+            {
+                "text": results["documents"][0][i],
+                "metadata": results["metadatas"][0][i],
+                "distance": results["distances"][0][i],
+            }
+        )
 
     return chunks
 
@@ -107,7 +109,9 @@ def ask(question: str, n_results: int = 5, verbose: bool = False) -> str:
         print(f"\n  Retrieved {len(chunks)} chunks:")
         for i, chunk in enumerate(chunks, 1):
             meta = chunk["metadata"]
-            print(f"    {i}. {meta.get('title', '?')} (distance: {chunk['distance']:.4f})")
+            print(
+                f"    {i}. {meta.get('title', '?')} (distance: {chunk['distance']:.4f})"
+            )
         print()
 
     # Generate answer
@@ -150,17 +154,20 @@ def main():
     parser = argparse.ArgumentParser(description="Query the RAG knowledge base")
     parser.add_argument("question", nargs="?", help="Question to ask")
     parser.add_argument(
-        "--interactive", "-i",
+        "--interactive",
+        "-i",
         action="store_true",
         help="Run in interactive chat mode",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show retrieved chunks and distances",
     )
     parser.add_argument(
-        "--results", "-n",
+        "--results",
+        "-n",
         type=int,
         default=5,
         help="Number of chunks to retrieve (default: 5)",

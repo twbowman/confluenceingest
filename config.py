@@ -37,4 +37,6 @@ class Config:
     KB_GIT_BRANCH: str = os.getenv("KB_GIT_BRANCH", "master")
     KB_GIT_SSH_KEY: str = os.getenv("KB_GIT_SSH_KEY", "")
     KB_GIT_AUTHOR_NAME: str = os.getenv("KB_GIT_AUTHOR_NAME", "confluence-sync")
-    KB_GIT_AUTHOR_EMAIL: str = os.getenv("KB_GIT_AUTHOR_EMAIL", "confluence-sync@mycompany.com")
+    KB_GIT_AUTHOR_EMAIL: str = os.getenv(
+        "KB_GIT_AUTHOR_EMAIL", "confluence-sync@mycompany.com"
+    )

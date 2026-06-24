@@ -112,7 +112,9 @@ def ingest(reset: bool = False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest knowledge base into vector store")
+    parser = argparse.ArgumentParser(
+        description="Ingest knowledge base into vector store"
+    )
     parser.add_argument(
         "--reset",
         action="store_true",
