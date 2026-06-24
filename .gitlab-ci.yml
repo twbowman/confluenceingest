@@ -5,17 +5,15 @@ stages:
   - sync
 
 # ─────────────────────────────────────────────────────────────
-# Base: UBI 9 Python 3.12
+# Base: UBI 10 Python 3.12
 # ─────────────────────────────────────────────────────────────
 
 default:
-  image: registry.access.redhat.com/ubi9-minimal:latest
+  image: registry.access.redhat.com/ubi10-minimal:latest
   tags:
     - do.small
   before_script:
-    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
+    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
 
 # ─────────────────────────────────────────────────────────────
 # Test — runs on every push
@@ -26,10 +24,8 @@ test:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache -r requirements.txt
+    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - pip3.12 install --no-cache-dir -r requirements.txt
   script:
     - python3.12 -m pytest test_converter.py -v
 
@@ -41,12 +37,11 @@ lint:
   stage: lint
   rules:
     - when: never
+    - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache ruff mypy
-    - uv pip install --system --no-cache -r requirements.txt
+    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - pip3.12 install --no-cache-dir ruff mypy
+    - pip3.12 install --no-cache-dir -r requirements.txt
   script:
     - ruff check .
     - ruff format --check .
@@ -60,11 +55,10 @@ bandit:
   stage: security
   rules:
     - when: never
+    - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache bandit
+    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - pip3.12 install --no-cache-dir bandit
   script:
     - bandit -r . -x ./venv,./.venv -ll
 
@@ -72,11 +66,10 @@ safety:
   stage: security
   rules:
     - when: never
+    - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - microdnf install -y tar python3.12 python3.12-pip && microdnf clean all
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache safety
+    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - pip3.12 install --no-cache-dir safety
   script:
     - safety check -r requirements.txt
   allow_failure: true
@@ -91,10 +84,8 @@ confluence-sync:
   rules:
     - when: manual
   before_script:
-    - microdnf install -y tar python3.12 python3.12-pip git openssh-clients && microdnf clean all
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv pip install --system --no-cache -r requirements.txt
+    - dnf5 install -y python3.12 python3.12-pip git openssh-clients && dnf5 clean all
+    - pip3.12 install --no-cache-dir -r requirements.txt
     # Set up SSH key for pushing to the knowledge base repo
     - mkdir -p ~/.ssh
     - echo "$KB_GIT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
