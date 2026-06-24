@@ -1,5 +1,7 @@
 """Fetch pages from Confluence via REST API using Bearer token (PAT) authentication."""
 
+from typing import Optional
+
 import requests
 from config import Config
 
@@ -112,7 +114,7 @@ def fetch_attachments(page_id: str) -> list[dict]:
     return attachments
 
 
-def download_attachment(download_path: str) -> bytes | None:
+def download_attachment(download_path: str) -> Optional[bytes]:
     """
     Download an attachment binary from Confluence.
 

@@ -485,10 +485,10 @@ def confluence_html_to_markdown(html_content: str) -> str:
             task_list_str = html[tl_start:end_pos]
 
             class FakeMatch:
-                def group(self, n):
+                def group(self, n: int) -> str:
                     return task_list_str
 
-            result.append(_convert_task_list(FakeMatch()))
+            result.append(_convert_task_list(FakeMatch()))  # type: ignore[arg-type]
             pos = end_pos
         return "".join(result)
 

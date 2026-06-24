@@ -27,6 +27,7 @@ import re
 import json
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 from config import Config
 from confluence_loader import fetch_pages, fetch_attachments, download_attachment
@@ -441,7 +442,7 @@ def sync(
     keep_local: bool = False,
     force: bool = False,
     force_all: bool = False,
-    space: str = None,
+    space: Optional[str] = None,
 ):
     """Run the Confluence → Markdown sync for all configured spaces."""
     print("=" * 60)
