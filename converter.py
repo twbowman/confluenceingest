@@ -142,7 +142,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
         r'<ac:structured-macro[^>]*ac:name="anchor"[^>]*>.*?'
         r'<ac:parameter ac:name="">([^<]*)</ac:parameter>.*?'
         r"</ac:structured-macro>",
-        r'KBANCHORxSTARTx\1xENDx',
+        r"KBANCHORxSTARTx\1xENDx",
         cleaned,
         flags=re.DOTALL,
     )
@@ -151,7 +151,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
         r'<ac:structured-macro[^>]*ac:name="anchor"[^>]*>.*?'
         r'<ac:parameter ac:name="[^"]*">([^<]*)</ac:parameter>.*?'
         r"</ac:structured-macro>",
-        r'KBANCHORxSTARTx\1xENDx',
+        r"KBANCHORxSTARTx\1xENDx",
         cleaned,
         flags=re.DOTALL,
     )
@@ -203,7 +203,8 @@ def confluence_html_to_markdown(html_content: str) -> str:
         # Try plain-text-body (contains raw text in CDATA)
         plain_match = re.search(
             r"<ac:plain-text-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-body>",
-            macro_html, re.DOTALL,
+            macro_html,
+            re.DOTALL,
         )
         if plain_match:
             return f"```\n{plain_match.group(1)}\n```"
@@ -302,8 +303,14 @@ def confluence_html_to_markdown(html_content: str) -> str:
                 search_pos = task_start
                 task_end = -1
                 while search_pos < len(html):
-                    next_open = html.find("<ac:task>", search_pos + 1 if search_pos == task_start else search_pos)
-                    next_close = html.find("</ac:task>", search_pos + 1 if search_pos == task_start else search_pos)
+                    next_open = html.find(
+                        "<ac:task>",
+                        search_pos + 1 if search_pos == task_start else search_pos,
+                    )
+                    next_close = html.find(
+                        "</ac:task>",
+                        search_pos + 1 if search_pos == task_start else search_pos,
+                    )
                     if next_close == -1:
                         break
                     # First iteration: count the opening tag we started with
@@ -354,7 +361,10 @@ def confluence_html_to_markdown(html_content: str) -> str:
                         )
 
                 # Confluence uses "complete" or "DONE" for checked; "incomplete" for unchecked
-                checked = status_match and status_match.group(1).strip().lower() != "incomplete"
+                checked = (
+                    status_match
+                    and status_match.group(1).strip().lower() != "incomplete"
+                )
                 checkbox = "[x]" if checked else "[ ]"
 
                 # Extract body — use greedy match to get the full body including nested content
@@ -369,12 +379,12 @@ def confluence_html_to_markdown(html_content: str) -> str:
                 )
                 if nested_in_body:
                     # Extract text before the nested list as this task's body
-                    text_before = body_html[:nested_in_body.start()]
+                    text_before = body_html[: nested_in_body.start()]
                     text_before = re.sub(r"<[^>]+>", "", text_before).strip()
                     items.append(f"{prefix}- {checkbox} {text_before}")
                     # Process the nested task-list as children
                     nested_html = nested_in_body.group(1)
-                    inner = nested_html[len("<ac:task-list>"):-len("</ac:task-list>")]
+                    inner = nested_html[len("<ac:task-list>") : -len("</ac:task-list>")]
                     items.extend(_parse_task_list(inner, indent + 1))
                 else:
                     # No nested list — just extract the text
@@ -418,6 +428,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
     def _find_and_replace_table_tasks(html: str) -> str:
         """Find task lists inside table cells and convert them."""
         pattern = r"(<t[dh][^>]*>)(.*?)(</t[dh]>)"
+
         def _replace_cell(m):
             cell_open = m.group(1)
             cell_content = m.group(2)
@@ -447,13 +458,16 @@ def confluence_html_to_markdown(html_content: str) -> str:
             if end_pos == -1:
                 return m.group(0)
             task_list_html = cell_content[tl_start:end_pos]
+
             # Create a fake match object
             class FakeMatch:
                 def group(self, n):
                     return task_list_html
+
             converted = _convert_task_list_in_table(FakeMatch())
             new_content = cell_content[:tl_start] + converted + cell_content[end_pos:]
             return cell_open + new_content + cell_close
+
         return re.sub(pattern, _replace_cell, html, flags=re.DOTALL)
 
     cleaned = _find_and_replace_table_tasks(cleaned)
@@ -492,9 +506,11 @@ def confluence_html_to_markdown(html_content: str) -> str:
                 break
             # Create a fake match for _convert_task_list
             task_list_str = html[tl_start:end_pos]
+
             class FakeMatch:
                 def group(self, n):
                     return task_list_str
+
             result.append(_convert_task_list(FakeMatch()))
             pos = end_pos
         return "".join(result)
@@ -508,9 +524,7 @@ def confluence_html_to_markdown(html_content: str) -> str:
     def _convert_image(match: re.Match) -> str:
         image_html = match.group(0)
         # Check for attachment reference
-        att_match = re.search(
-            r'<ri:attachment\s+ri:filename="([^"]*)"', image_html
-        )
+        att_match = re.search(r'<ri:attachment\s+ri:filename="([^"]*)"', image_html)
         if att_match:
             filename = att_match.group(1)
             # Return a placeholder that will survive markdownify

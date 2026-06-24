@@ -31,7 +31,13 @@ from datetime import datetime
 from config import Config
 from confluence_loader import fetch_pages, fetch_attachments, download_attachment
 from converter import convert_page
-from git_publisher import pull_kb_repo, push_kb_repo, cleanup_kb_repo, get_space_dir, get_clone_dir
+from git_publisher import (
+    pull_kb_repo,
+    push_kb_repo,
+    cleanup_kb_repo,
+    get_space_dir,
+    get_clone_dir,
+)
 
 
 def build_file_path(page: dict, space_dir: str, parent_ids: set) -> Path:
@@ -52,8 +58,8 @@ def build_file_path(page: dict, space_dir: str, parent_ids: set) -> Path:
     # Sanitize each segment for filesystem use
     safe_segments = []
     for segment in segments:
-        safe = re.sub(r'[^\w\s-]', '', segment).strip()
-        safe = re.sub(r'[\s]+', '-', safe).lower()
+        safe = re.sub(r"[^\w\s-]", "", segment).strip()
+        safe = re.sub(r"[\s]+", "-", safe).lower()
         if safe:
             safe_segments.append(safe)
 
@@ -69,7 +75,11 @@ def build_file_path(page: dict, space_dir: str, parent_ids: set) -> Path:
     else:
         # Leaf page → named .md file in parent directory
         filename = safe_segments.pop() + ".md"
-        dir_path = Path(space_dir).joinpath(*safe_segments) if safe_segments else Path(space_dir)
+        dir_path = (
+            Path(space_dir).joinpath(*safe_segments)
+            if safe_segments
+            else Path(space_dir)
+        )
         return dir_path / filename
 
 
@@ -120,7 +130,6 @@ def download_page_attachments(
 
     for att in attachments:
         filename = att.get("title", "unknown")
-        file_ext = Path(filename).suffix.lower()
         file_size = att.get("extensions", {}).get("fileSize", 0)
         att_version = att.get("version", {}).get("number", 0)
         download_url = att.get("_links", {}).get("download", "")
@@ -173,7 +182,9 @@ def download_page_attachments(
             "version": att_version,
             "size": len(content),
         }
-        print(f"      ATTACHMENT: {filename} v{att_version} ({len(content) / 1024:.0f} KB)")
+        print(
+            f"      ATTACHMENT: {filename} v{att_version} ({len(content) / 1024:.0f} KB)"
+        )
 
     return downloaded, new_attachment_state
 
@@ -189,9 +200,7 @@ def load_sync_state(space_dir: str) -> dict:
 def save_sync_state(space_dir: str, state: dict):
     """Persist sync state for future incremental runs."""
     state_file = Path(space_dir) / ".sync-state.json"
-    state_file.write_text(
-        json.dumps(state, indent=2, default=str), encoding="utf-8"
-    )
+    state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
 
 
 def generate_kb_readme(space_keys: list[str], stats: dict):
@@ -318,7 +327,9 @@ grep -r "Confluence macro:" <space_key>/
     readme_path.write_text(readme_content.strip() + "\n", encoding="utf-8")
 
 
-def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force_all: bool = False) -> dict:
+def sync_space(
+    space_key: str, dry_run: bool = False, force: bool = False, force_all: bool = False
+) -> dict:
     """
     Sync a single Confluence space into its subdirectory.
 
@@ -377,7 +388,9 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
         # Download attachments for this page (version-aware, skips unchanged)
         prev_attachments = prev.get("attachments", {})
         downloaded_attachments, new_attachment_state = download_page_attachments(
-            page_id, title, space_key,
+            page_id,
+            title,
+            space_key,
             previous_attachments=prev_attachments,
             dry_run=dry_run,
             force=force_all,
@@ -385,7 +398,9 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
 
         # Rewrite attachment path placeholders in the markdown
         # Path is relative to the KB repo root: /<space_key>/attachments/<page_id>
-        attachments_rel_path = f"/{space_key.lower()}/{Config.ATTACHMENTS_DIR}/{page_id}"
+        attachments_rel_path = (
+            f"/{space_key.lower()}/{Config.ATTACHMENTS_DIR}/{page_id}"
+        )
         content = content.replace("%%ATTACHMENT_PATH%%", attachments_rel_path)
 
         # Replace attachment list macro placeholder with actual file listing
@@ -394,8 +409,12 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
             if all_attachments:
                 att_lines = ["\n**Attachments:**\n"]
                 for filename in sorted(all_attachments):
-                    att_lines.append(f"- [{filename}]({attachments_rel_path}/{filename})")
-                content = content.replace("KBATTACHMENTLIST", "\n".join(att_lines) + "\n")
+                    att_lines.append(
+                        f"- [{filename}]({attachments_rel_path}/{filename})"
+                    )
+                content = content.replace(
+                    "KBATTACHMENTLIST", "\n".join(att_lines) + "\n"
+                )
             else:
                 content = content.replace("KBATTACHMENTLIST", "")
 
@@ -431,7 +450,14 @@ def sync_space(space_key: str, dry_run: bool = False, force: bool = False, force
     return stats
 
 
-def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, force: bool = False, force_all: bool = False, space: str = None):
+def sync(
+    dry_run: bool = False,
+    push: bool = True,
+    keep_local: bool = False,
+    force: bool = False,
+    force_all: bool = False,
+    space: str = None,
+):
     """Run the Confluence → Markdown sync for all configured spaces."""
     print("=" * 60)
     print("Confluence → Markdown Sync")
@@ -439,12 +465,16 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
 
     space_keys = [space.upper()] if space else Config.CONFLUENCE_SPACE_KEYS
     if not space_keys:
-        raise ValueError("Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)")
+        raise ValueError(
+            "Set CONFLUENCE_SPACE_KEY in your .env (comma-separated for multiple spaces)"
+        )
 
     print(f"\nSpaces to sync: {', '.join(space_keys)}")
 
     if force_all:
-        print("  (FORCE ALL — re-converting all pages and re-downloading all attachments)")
+        print(
+            "  (FORCE ALL — re-converting all pages and re-downloading all attachments)"
+        )
     elif force:
         print("  (FORCE — ignoring sync state, re-converting all pages)")
 
@@ -456,6 +486,7 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
     legacy_attachments = get_clone_dir() / "attachments"
     if legacy_attachments.exists() and legacy_attachments.is_dir():
         import shutil
+
         shutil.rmtree(legacy_attachments)
         print("  Removed legacy root-level attachments/ directory (now per-space)")
 
@@ -475,8 +506,10 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
         for key in total_stats:
             total_stats[key] += stats[key]
 
-        print(f"  Space {space_key}: +{stats['created']} created, ~{stats['updated']} updated, "
-              f"={stats['unchanged']} unchanged, -{stats['skipped']} skipped")
+        print(
+            f"  Space {space_key}: +{stats['created']} created, ~{stats['updated']} updated, "
+            f"={stats['unchanged']} unchanged, -{stats['skipped']} skipped"
+        )
 
     # Summary
     print(f"\n{'═' * 60}")
@@ -493,7 +526,11 @@ def sync(dry_run: bool = False, push: bool = True, keep_local: bool = False, for
         generate_kb_readme(space_keys, total_stats)
 
     # Step 4: Commit and push to GitLab (single commit for all spaces)
-    if not dry_run and push and (total_stats["created"] > 0 or total_stats["updated"] > 0):
+    if (
+        not dry_run
+        and push
+        and (total_stats["created"] > 0 or total_stats["updated"] > 0)
+    ):
         push_kb_repo(total_stats)
     elif not push:
         print("\n  Git push skipped (--no-push)")

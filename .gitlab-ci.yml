@@ -9,11 +9,11 @@ stages:
 # ─────────────────────────────────────────────────────────────
 
 default:
-  image: registry.access.redhat.com/ubi10-minimal:latest
+  image: registry.access.redhat.com/ubi10:latest
   tags:
     - do.small
   before_script:
-    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - dnf install -y python3.12 python3.12-pip && dnf clean all
 
 # ─────────────────────────────────────────────────────────────
 # Test — runs on every push
@@ -24,7 +24,7 @@ test:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - dnf install -y python3.12 python3.12-pip && dnf clean all
     - pip3.12 install --no-cache-dir -r requirements.txt
   script:
     - python3.12 -m pytest test_converter.py -v
@@ -39,7 +39,7 @@ lint:
     - when: never
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - dnf install -y python3.12 python3.12-pip && dnf clean all
     - pip3.12 install --no-cache-dir ruff mypy
     - pip3.12 install --no-cache-dir -r requirements.txt
   script:
@@ -57,7 +57,7 @@ bandit:
     - when: never
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - dnf install -y python3.12 python3.12-pip && dnf clean all
     - pip3.12 install --no-cache-dir bandit
   script:
     - bandit -r . -x ./venv,./.venv -ll
@@ -68,7 +68,7 @@ safety:
     - when: never
     - if: $CI_PIPELINE_SOURCE == "push"
   before_script:
-    - dnf5 install -y python3.12 python3.12-pip && dnf5 clean all
+    - dnf install -y python3.12 python3.12-pip && dnf clean all
     - pip3.12 install --no-cache-dir safety
   script:
     - safety check -r requirements.txt
@@ -84,7 +84,7 @@ confluence-sync:
   rules:
     - when: manual
   before_script:
-    - dnf5 install -y python3.12 python3.12-pip git openssh-clients && dnf5 clean all
+    - dnf install -y python3.12 python3.12-pip git openssh-clients && dnf clean all
     - pip3.12 install --no-cache-dir -r requirements.txt
     # Set up SSH key for pushing to the knowledge base repo
     - mkdir -p ~/.ssh

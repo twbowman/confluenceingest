@@ -10,7 +10,6 @@ Covers known conversion issues that have been fixed:
 Run with: python -m pytest test_converter.py -v
 """
 
-import pytest
 from converter import confluence_html_to_markdown
 
 
@@ -51,7 +50,7 @@ class TestTaskListBasic:
             "<ac:task-list>"
             "<ac:task><ac:task-id>1</ac:task-id>"
             "<ac:task-status>complete</ac:task-status>"
-            "<ac:task-body><span class=\"placeholder\"><strong>Bold</strong> text</span></ac:task-body>"
+            '<ac:task-body><span class="placeholder"><strong>Bold</strong> text</span></ac:task-body>'
             "</ac:task>"
             "</ac:task-list>"
         )
@@ -90,7 +89,7 @@ class TestTaskListNewlines:
             "</ac:task-list>"
         )
         result = confluence_html_to_markdown(html)
-        lines = [l for l in result.splitlines() if l.strip().startswith("- [")]
+        lines = [line for line in result.splitlines() if line.strip().startswith("- [")]
         assert len(lines) == 3
         assert "- [x] First" in lines[0]
         assert "- [ ] Second" in lines[1]
@@ -201,8 +200,8 @@ class TestTaskListNested:
         )
         result = confluence_html_to_markdown(html)
         lines = result.splitlines()
-        parent_line = next(l for l in lines if "Parent" in l)
-        child_line = next(l for l in lines if "Child" in l)
+        parent_line = next(line for line in lines if "Parent" in line)
+        child_line = next(line for line in lines if "Child" in line)
         # Parent should not be indented
         assert parent_line.startswith("- [x]")
         # Child should be indented (2 spaces)
@@ -231,9 +230,9 @@ class TestTaskListNested:
         )
         result = confluence_html_to_markdown(html)
         lines = result.splitlines()
-        l0 = next(l for l in lines if "Level 0" in l)
-        l1 = next(l for l in lines if "Level 1" in l)
-        l2 = next(l for l in lines if "Level 2" in l)
+        l0 = next(line for line in lines if "Level 0" in line)
+        l1 = next(line for line in lines if "Level 1" in line)
+        l2 = next(line for line in lines if "Level 2" in line)
         assert l0.startswith("- [x]")
         assert l1.startswith("  - [ ]")
         assert l2.startswith("    - [x]")
@@ -260,7 +259,7 @@ class TestTaskListNested:
         )
         result = confluence_html_to_markdown(html)
         lines = result.splitlines()
-        back_line = next(l for l in lines if "Back to parent" in l)
+        back_line = next(line for line in lines if "Back to parent" in line)
         # Should be at root level, not indented
         assert back_line.startswith("- [ ]")
 
@@ -353,8 +352,7 @@ class TestExistingConversions:
 
     def test_tables_convert_to_markdown(self):
         html = (
-            "<table><tr><th>A</th><th>B</th></tr>"
-            "<tr><td>1</td><td>2</td></tr></table>"
+            "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
         )
         result = confluence_html_to_markdown(html)
         assert "| A | B |" in result
@@ -370,21 +368,13 @@ class TestImageConversion:
     """Confluence image macros should convert to markdown image references."""
 
     def test_attachment_image_converts_to_markdown_img(self):
-        html = (
-            '<ac:image>'
-            '<ri:attachment ri:filename="screenshot.png" />'
-            '</ac:image>'
-        )
+        html = '<ac:image><ri:attachment ri:filename="screenshot.png" /></ac:image>'
         result = confluence_html_to_markdown(html)
         assert "screenshot.png" in result
         assert "%%ATTACHMENT_PATH%%" in result
 
     def test_external_url_image_preserved(self):
-        html = (
-            '<ac:image>'
-            '<ri:url ri:value="https://example.com/logo.png" />'
-            '</ac:image>'
-        )
+        html = '<ac:image><ri:url ri:value="https://example.com/logo.png" /></ac:image>'
         result = confluence_html_to_markdown(html)
         assert "https://example.com/logo.png" in result
 
@@ -392,9 +382,9 @@ class TestImageConversion:
         """Images should no longer be stripped — they should appear in output."""
         html = (
             "<p>Before</p>"
-            '<ac:image>'
+            "<ac:image>"
             '<ri:attachment ri:filename="diagram.png" />'
-            '</ac:image>'
+            "</ac:image>"
             "<p>After</p>"
         )
         result = confluence_html_to_markdown(html)
@@ -415,11 +405,10 @@ class TestImageConversion:
         html = (
             '<ac:image ac:width="500" ac:height="300">'
             '<ri:attachment ri:filename="wide-image.png" />'
-            '</ac:image>'
+            "</ac:image>"
         )
         result = confluence_html_to_markdown(html)
         assert "wide-image.png" in result
-
 
 
 # ─────────────────────────────────────────────────────────────
@@ -431,7 +420,9 @@ class TestUserMentions:
     """Confluence user mentions should convert to @username format."""
 
     def test_mention_with_userkey(self):
-        html = '<p>Assigned to <ac:link><ri:user ri:userkey="772abc123" /></ac:link></p>'
+        html = (
+            '<p>Assigned to <ac:link><ri:user ri:userkey="772abc123" /></ac:link></p>'
+        )
         result = confluence_html_to_markdown(html)
         assert "@772abc123" in result
 
@@ -480,7 +471,6 @@ class TestUserMentions:
         assert "@alice" in result
         assert "@bob" in result
 
-
     def test_mention_with_ac_link_attributes(self):
         """ac:link can have extra attributes like ac:anchor — should still resolve."""
         html = '<p><ac:link ac:anchor=""><ri:user ri:userkey="abc123" /></ac:link> did this</p>'
@@ -507,11 +497,10 @@ class TestUserMentions:
         assert "@xyz" in result
         assert "Nested item" in result
         lines = result.splitlines()
-        parent = next(l for l in lines if "@xyz" in l)
-        child = next(l for l in lines if "Nested item" in l)
+        parent = next(line for line in lines if "@xyz" in line)
+        child = next(line for line in lines if "Nested item" in line)
         assert parent.startswith("- [ ]")
         assert child.startswith("  - [x]")
-
 
 
 # ─────────────────────────────────────────────────────────────
@@ -536,8 +525,8 @@ class TestNestedTaskInsideBody:
         )
         result = confluence_html_to_markdown(html)
         lines = result.splitlines()
-        parent = next(l for l in lines if "Parent text" in l)
-        child = next(l for l in lines if "Child text" in l)
+        parent = next(line for line in lines if "Parent text" in line)
+        child = next(line for line in lines if "Child text" in line)
         assert parent.startswith("- [ ] Parent text")
         assert child.startswith("  - [ ] Child text")
 
@@ -571,5 +560,5 @@ class TestNestedTaskInsideBody:
         assert "@someone" in result
         assert "Sub-item done" in result
         lines = result.splitlines()
-        child = next(l for l in lines if "Sub-item" in l)
+        child = next(line for line in lines if "Sub-item" in line)
         assert child.startswith("  - [x]")

@@ -40,9 +40,7 @@ def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
         env=_git_env(),
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(args)} failed:\n{result.stderr.strip()}"
-        )
+        raise RuntimeError(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
     return result
 
 
@@ -58,9 +56,7 @@ def pull_knowledge_base(fresh: bool = False) -> Path:
     local_dir = Path(Config.KB_LOCAL_DIR)
 
     if not Config.KB_GIT_REPO_URL:
-        raise ValueError(
-            "KB_GIT_REPO_URL not configured. Set it in your .env file."
-        )
+        raise ValueError("KB_GIT_REPO_URL not configured. Set it in your .env file.")
 
     print("=" * 60)
     print("Knowledge Base — Git Pull")
@@ -87,8 +83,13 @@ def pull_knowledge_base(fresh: bool = False) -> Path:
         local_dir.parent.mkdir(parents=True, exist_ok=True)
 
         _run_git(
-            ["clone", "--branch", Config.KB_GIT_BRANCH,
-             Config.KB_GIT_REPO_URL, str(local_dir)],
+            [
+                "clone",
+                "--branch",
+                Config.KB_GIT_BRANCH,
+                Config.KB_GIT_REPO_URL,
+                str(local_dir),
+            ],
             cwd=str(local_dir.parent),
         )
         print("  Clone complete.")

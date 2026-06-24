@@ -26,7 +26,9 @@ def _git_env() -> dict:
     return env
 
 
-def _run_git(args: list[str], cwd: str, timeout: int = 120) -> subprocess.CompletedProcess:
+def _run_git(
+    args: list[str], cwd: str, timeout: int = 120
+) -> subprocess.CompletedProcess:
     """Run a git command in the specified directory."""
     result = subprocess.run(
         ["git"] + args,
@@ -37,9 +39,7 @@ def _run_git(args: list[str], cwd: str, timeout: int = 120) -> subprocess.Comple
         env=_git_env(),
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(args)} failed:\n{result.stderr.strip()}"
-        )
+        raise RuntimeError(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
     return result
 
 
@@ -92,8 +92,13 @@ def pull_kb_repo() -> Path:
     # Try cloning with the configured branch
     try:
         _run_git(
-            ["clone", "--branch", Config.KB_GIT_BRANCH,
-             Config.KB_GIT_REPO_URL, str(clone_dir)],
+            [
+                "clone",
+                "--branch",
+                Config.KB_GIT_BRANCH,
+                Config.KB_GIT_REPO_URL,
+                str(clone_dir),
+            ],
             cwd=str(clone_dir.parent),
         )
         print(f"  Cloned {Config.KB_GIT_REPO_URL} ({Config.KB_GIT_BRANCH})")
@@ -109,9 +114,11 @@ def pull_kb_repo() -> Path:
             # Truly empty repo — init fresh
             clone_dir.mkdir(parents=True, exist_ok=True)
             _run_git(["init"], str(clone_dir))
-            _run_git(["remote", "add", "origin", Config.KB_GIT_REPO_URL], str(clone_dir))
+            _run_git(
+                ["remote", "add", "origin", Config.KB_GIT_REPO_URL], str(clone_dir)
+            )
             _run_git(["checkout", "-b", Config.KB_GIT_BRANCH], str(clone_dir))
-            print(f"  Initialized new repo (remote appears empty)")
+            print("  Initialized new repo (remote appears empty)")
 
     # Set git author config
     _run_git(["config", "user.name", Config.KB_GIT_AUTHOR_NAME], str(clone_dir))
@@ -171,7 +178,10 @@ def push_kb_repo(stats: dict) -> bool:
             break
         except (RuntimeError, subprocess.TimeoutExpired) as e:
             error_msg = str(e)
-            is_timeout = isinstance(e, subprocess.TimeoutExpired) or "timeout" in error_msg.lower()
+            is_timeout = (
+                isinstance(e, subprocess.TimeoutExpired)
+                or "timeout" in error_msg.lower()
+            )
             is_size_issue = any(
                 word in error_msg.lower()
                 for word in ["large", "size", "exceeded", "pack"]
